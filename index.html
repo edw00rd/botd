@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>B.O.T.D. — Beware of the Dog</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <img class="logo" src="assets/botd-tag.png" alt="B.O.T.D. logo" />
+    <div>
+      <h1>B.O.T.D.</h1>
+      <p>Beware of the Dog — Hockey Night Game</p>
+    </div>
+  </header>
+
+  <main class="card">
+    <h2>Start</h2>
+
+    <label class="row">
+      <span>League</span>
+      <select id="league">
+        <option value="nhl">NHL</option>
+        <option value="pwhl">PWHL</option>
+        <option value="olympics">Olympics</option>
+        <option value="other">Other</option>
+      </select>
+    </label>
+
+    <label class="row">
+      <span>LIVE (use API)</span>
+      <input id="liveToggle" type="checkbox" />
+    </label>
+
+    <div class="divider"></div>
+
+    <label class="row">
+      <span>Team A</span>
+      <input id="teamA" placeholder="e.g., Kraken" />
+    </label>
+
+    <label class="row">
+      <span>Team B</span>
+      <input id="teamB" placeholder="e.g., Canucks" />
+    </label>
+
+    <div class="divider"></div>
+
+    <label class="row">
+      <span>Player (Kid)</span>
+      <input id="player1" placeholder="Kid name" />
+    </label>
+
+    <label class="row">
+      <span>Scorekeeper (House)</span>
+      <input id="scorekeeper" placeholder="House / Dad / Mom" />
+    </label>
+
+    <label class="row">
+      <span>ANTE (task)</span>
+      <input id="ante" placeholder="e.g., Clean room 10 min" />
+    </label>
+
+    <button id="startBtn">START GAME</button>
+
+    <p class="note">
+      Tip: We’ll add NHL/ESPN live game selection next. This first version is manual.
+    </p>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
