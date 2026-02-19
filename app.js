@@ -10,8 +10,8 @@ document.getElementById("startBtn").addEventListener("click", () => {
     startedAt: new Date().toISOString()
   };
 
-  if (!state.teamA || !state.teamB || !state.player1 || !state.scorekeeper) {
-    alert("Fill Team A, Team B, Player, and Scorekeeper.");
+  if (!state.away || !state.home || !state.player1 || !state.scorekeeper) {
+    alert("Fill AWAY, HOME, Player, and Scorekeeper.");
     return;
   }
 
