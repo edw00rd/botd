@@ -2,8 +2,8 @@ document.getElementById("startBtn").addEventListener("click", () => {
   const state = {
     league: document.getElementById("league").value,
     live: document.getElementById("liveToggle").checked,
-    teamA: document.getElementById("teamA").value.trim(),
-    teamB: document.getElementById("teamB").value.trim(),
+    away: document.getElementById("away").value.trim(),
+    home: document.getElementById("home").value.trim(),
     player1: document.getElementById("player1").value.trim(),
     scorekeeper: document.getElementById("scorekeeper").value.trim(),
     ante: document.getElementById("ante").value.trim(),
