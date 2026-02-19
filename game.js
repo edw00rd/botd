@@ -24,7 +24,7 @@ function render() {
   gameEl.innerHTML = `
     <div style="border:1px solid #ccc; padding:12px; max-width:520px;">
       <h2 style="margin-top:0;">${away} @ ${home}</h2>
-      <p style="margin:6px 0;"><strong>Kid:</strong> ${state.player1} &nbsp; | &nbsp; <strong>House:</strong> ${state.scorekeeper}</p>
+      <p style="margin:6px 0;"><strong>Kid:</strong> ${state.player1} &nbsp; | &nbsp; <strong>House:</strong> ${state.house}</p>
       <p style="margin:6px 0;"><strong>Score:</strong> Kid ${state.score.kid} — House ${state.score.house} &nbsp; | &nbsp; <strong>DOGs:</strong> ${state.dogs}</p>
       <p style="margin:6px 0;"><strong>ANTE:</strong> ${state.ante || "(none)"} </p>
     </div>
