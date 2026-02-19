@@ -5,13 +5,13 @@ document.getElementById("startBtn").addEventListener("click", () => {
     away: document.getElementById("away").value.trim(),
     home: document.getElementById("home").value.trim(),
     player1: document.getElementById("player1").value.trim(),
-    scorekeeper: document.getElementById("scorekeeper").value.trim(),
+    house: document.getElementById("house").value.trim(),
     ante: document.getElementById("ante").value.trim(),
     startedAt: new Date().toISOString()
   };
 
   if (!state.away || !state.home || !state.player1 || !state.scorekeeper) {
-    alert("Fill AWAY, HOME, Player, and Scorekeeper.");
+    alert("Fill AWAY, HOME, Player, and House.");
     return;
   }
 
