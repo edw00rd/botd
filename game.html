@@ -1,10 +1,25 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>B.O.T.D. — Game</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
 </head>
 <body>
-  <h1>Game Screen (WIP)</h1>
+  <h1>B.O.T.D. — Game</h1>
+
+  <pre id="state">Loading…</pre>
+
+  <script>
+    const state = JSON.parse(localStorage.getItem("botd_state"));
+
+    if (!state) {
+      document.getElementById("state").textContent =
+        "No game state found. Go back to setup.";
+    } else {
+      document.getElementById("state").textContent =
+        JSON.stringify(state, null, 2);
+    }
+  </script>
 </body>
 </html>
