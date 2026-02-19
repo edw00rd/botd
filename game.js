@@ -62,19 +62,26 @@ function render() {
     </div>
 
     <div style="margin-top:16px; border:1px solid #ccc; padding:12px; max-width:520px;">
-      <h3 style="margin-top:0;">Pre-Game Q1 (1 pt)</h3>
-      <p><strong>Who will win the game?</strong></p>
+  <h3 style="margin-top:0;">Pre-Game Q1 (1 pt)</h3>
+  <p><strong>Who will win the game?</strong></p>
 
-      <div style="border-top:1px solid #eee; padding-top:10px;">
-        <div style="font-weight:700; margin-bottom:4px;">${state.player1}</div>
-        ${playerSection}
-      </div>
-
-      <div style="border-top:1px solid #eee; margin-top:10px; padding-top:10px;">
-        <div style="font-weight:700; margin-bottom:4px;">${state.house}</div>
-        ${houseSection}
-      </div>
+  <div style="display:flex; gap:12px; align-items:flex-start;">
+    <!-- PLAYER COLUMN -->
+    <div style="flex:1; border-top:1px solid #eee; padding-top:10px;">
+      <div style="font-weight:700; margin-bottom:6px;">${state.player1}</div>
+      ${playerSection}
     </div>
+
+    <!-- DIVIDER -->
+    <div style="width:1px; background:#eee; align-self:stretch;"></div>
+
+    <!-- HOUSE COLUMN -->
+    <div style="flex:1; border-top:1px solid #eee; padding-top:10px;">
+      <div style="font-weight:700; margin-bottom:6px;">${state.house}</div>
+      ${houseSection}
+    </div>
+  </div>
+ </div>
   `;
 
   wireQ1Buttons();
