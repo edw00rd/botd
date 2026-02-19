@@ -10,26 +10,6 @@
 
   <div id="game"></div>
 
-  <script>
-  const state = JSON.parse(localStorage.getItem("botd_state"));
-  const gameEl = document.getElementById("game");
-
-  if (!state) {
-    gameEl.textContent = "No game state found. Go back to setup.";
-  } else {
-
-    gameEl.innerHTML = `
-      <div style="border:1px solid #ccc; padding:12px; max-width:420px;">
-        <h2>${state.away} @ ${state.home}</h2>
-        <p><strong>Kid:</strong> ${state.player1}</p>
-        <p><strong>House:</strong> ${state.scorekeeper}</p>
-        <p><strong>ANTE:</strong> ${state.ante}</p>
-        <p><strong>Score:</strong> 0</p>
-        <p><strong>DOGs:</strong> 0</p>
-      </div>
-    `;
-  }
-  </script>
-  
+  <script src="game.js"></script>
 </body>
 </html>
