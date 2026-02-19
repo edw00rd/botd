@@ -16,5 +16,5 @@ document.getElementById("startBtn").addEventListener("click", () => {
   }
 
   localStorage.setItem("botd_state", JSON.stringify(state));
-  alert("Game saved! Next step: build the scoreboard + questions screen.");
+  window.location.href = "game.html";
 });
