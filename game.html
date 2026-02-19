@@ -17,10 +17,10 @@
   if (!state) {
     gameEl.textContent = "No game state found. Go back to setup.";
   } else {
-    // teamA = AWAY, teamB = HOME
+
     gameEl.innerHTML = `
       <div style="border:1px solid #ccc; padding:12px; max-width:420px;">
-        <h2>${state.teamA} @ ${state.teamB}</h2>
+        <h2>${state.away} @ ${state.home}</h2>
         <p><strong>Kid:</strong> ${state.player1}</p>
         <p><strong>House:</strong> ${state.scorekeeper}</p>
         <p><strong>ANTE:</strong> ${state.ante}</p>
