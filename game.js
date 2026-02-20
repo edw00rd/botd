@@ -1,11 +1,14 @@
-// BOTD — game.js (drop-in: adds Period 1 with manual results + SOG tracking scaffolding)
+// BOTD — game.js (single-copy-paste version)
+// Includes:
 // - Away @ Home convention
-// - "House" terminology
-// - Side-by-side sealed picks (hidden after lock; only 🔒 Locked shows)
+// - "House" terminology (+ back-compat from scorekeeper)
+// - Sealed picks (hidden after lock; only 🔒 Locked shows)
 // - Pre-Game Q1 + Q2
-// - Period 1: 3 questions + House enters results with buttons + SOG totals
+// - Period 1: 3 sealed questions + House results panel
+//   * Results UI uses Y/N checkbox-style selectors (mutually exclusive) + SOG totals
+//   * Results persist across re-renders/navigation (critical for Good Boy later)
 // - SOG logic: start at 0/0, House enters end totals, period SOG = end - start
-// - LIVE toggle scaffolding + House override to disable LIVE anytime (API later)
+// - LIVE scaffolding + House override to disable LIVE anytime (API later)
 
 const state = JSON.parse(localStorage.getItem("botd_state"));
 const gameEl = document.getElementById("game");
@@ -35,8 +38,8 @@ if (!state) {
 
   // Pre-game answers
   state.pre = state.pre ?? {};
-  state.pre.q1 = state.pre.q1 ?? mkPickState("Away|Home");
-  state.pre.q2 = state.pre.q2 ?? mkPickState("Yes|No");
+  state.pre.q1 = state.pre.q1 ?? mkPickState();
+  state.pre.q2 = state.pre.q2 ?? mkPickState();
 
   // Periods
   state.periods = state.periods ?? {};
@@ -45,9 +48,9 @@ if (!state) {
   render();
 }
 
-function mkPickState(_type) {
+function mkPickState() {
   return {
-    player: null,
+    player: null, // e.g., "Away"/"Home" or "Yes"/"No"
     house: null,
     lockedPlayer: false,
     lockedHouse: false
@@ -57,19 +60,23 @@ function mkPickState(_type) {
 function mkPeriodState() {
   return {
     picks: {
-      q1_goal: mkPickState("Yes|No"),
-      q2_penalty: mkPickState("Yes|No"),
-      q3_both5sog: mkPickState("Yes|No")
+      q1_goal: mkPickState(),       // Yes/No
+      q2_penalty: mkPickState(),    // Yes/No
+      q3_both5sog: mkPickState()    // Yes/No
     },
     results: {
-      goal: null,      // "Yes" | "No"
-      penalty: null,   // "Yes" | "No"
-      endSogAway: null, // number
-      endSogHome: null  // number
+      goal: null,         // "Yes" | "No"
+      penalty: null,      // "Yes" | "No"
+      endSogAway: null,   // number
+      endSogHome: null    // number
     },
     lockedResults: false,
-    computed: null // filled after results lock
+    computed: null
   };
+}
+
+function saveState() {
+  localStorage.setItem("botd_state", JSON.stringify(state));
 }
 
 function render() {
@@ -124,7 +131,7 @@ function render() {
   gameEl.innerHTML = `${headerHTML}${screenHTML}`;
 
   wireHandlers();
-  localStorage.setItem("botd_state", JSON.stringify(state));
+  saveState();
 }
 
 function renderSideBySideQuestion({ title, questionText, leftName, rightName, leftSectionHTML, rightSectionHTML, backHTML = "", continueHTML = "" }) {
@@ -156,10 +163,7 @@ function renderSideBySideQuestion({ title, questionText, leftName, rightName, le
 }
 
 function sealedYesNoSection({ idPrefix, lockedSelf, lockedOther, requireOtherLock }) {
-  // requireOtherLock: if true, buttons disabled until other locks
-  // lockedOther is used to determine disable state (e.g., House cannot act until player locks)
   const lockedUI = `<div style="margin:8px 0;"><strong>🔒 Locked</strong></div>`;
-
   if (lockedSelf) return lockedUI;
 
   const disabled = requireOtherLock && !lockedOther ? "disabled" : "";
@@ -176,6 +180,9 @@ function sealedYesNoSection({ idPrefix, lockedSelf, lockedOther, requireOtherLoc
   `;
 }
 
+/* -------------------------
+   Pre-Game Q1
+-------------------------- */
 function renderPreQ1() {
   const q1 = state.pre.q1;
 
@@ -211,6 +218,9 @@ function renderPreQ1() {
   });
 }
 
+/* -------------------------
+   Pre-Game Q2
+-------------------------- */
 function renderPreQ2() {
   const q2 = state.pre.q2;
 
@@ -243,11 +253,14 @@ function renderPreQ2() {
   });
 }
 
+/* -------------------------
+   Period 1
+-------------------------- */
 function renderPeriod1() {
   const p1 = state.periods.p1;
   const picks = p1.picks;
+  const r = p1.results;
 
-  // Question cards (three sealed yes/no)
   const qCard = (label, pickState, idPrefix) => {
     const playerSection = sealedYesNoSection({
       idPrefix: `${idPrefix}_player`,
@@ -289,57 +302,76 @@ function renderPeriod1() {
     picks.q2_penalty.lockedPlayer && picks.q2_penalty.lockedHouse &&
     picks.q3_both5sog.lockedPlayer && picks.q3_both5sog.lockedHouse;
 
-  // Results panel: only after all picks locked
-  const resultsPanel = () => {
-    const r = p1.results;
+  const resultsNote = state.live
+    ? `<div style="font-size:0.9rem; opacity:0.75; margin-bottom:8px;">LIVE is ON (API later). House can still enter results now.</div>`
+    : `<div style="font-size:0.9rem; opacity:0.75; margin-bottom:8px;">House enters end-of-period totals.</div>`;
 
-    // If LIVE is on, we still show manual inputs (API later), but House can disable LIVE anytime.
-    // For now, LIVE simply changes the label.
-    const note = state.live
-      ? `<div style="font-size:0.9rem; opacity:0.75; margin-bottom:8px;">LIVE is ON (API later). House can still enter results now.</div>`
-      : `<div style="font-size:0.9rem; opacity:0.75; margin-bottom:8px;">House enters end-of-period totals.</div>`;
+  const resultsPanel = allLocked ? `
+    <div style="margin-top:12px; border:1px solid #ddd; padding:10px;">
+      <div style="font-weight:700; margin-bottom:6px;">Period 1 Results (House)</div>
+      ${resultsNote}
 
-    const lockedUI = p1.lockedResults
-      ? `<div style="margin:8px 0;"><strong>🔒 Period 1 results locked</strong></div>`
-      : `
-        <div style="display:flex; gap:10px; flex-wrap:wrap; margin:8px 0;">
-          <button id="r_goal_yes">Goal: Yes</button>
-          <button id="r_goal_no">Goal: No</button>
-        </div>
-        <div style="display:flex; gap:10px; flex-wrap:wrap; margin:8px 0;">
-          <button id="r_pen_yes">Penalty: Yes</button>
-          <button id="r_pen_no">Penalty: No</button>
-        </div>
+      ${
+        p1.lockedResults
+          ? `<div style="margin:8px 0;"><strong>🔒 Period 1 results locked</strong></div>`
+          : `
+            <div style="margin:8px 0;">
+              <div style="display:grid; grid-template-columns: 110px 1fr 1fr; gap:10px; align-items:center;">
+                <div></div>
+                <div style="font-weight:700;">Y</div>
+                <div style="font-weight:700;">N</div>
 
-        <div style="display:flex; gap:10px; flex-wrap:wrap; margin:8px 0;">
-          <div style="flex:1;">
-            <div style="font-weight:700; margin-bottom:4px;">End SOG — Away (${state.away})</div>
-            <input id="r_sog_away" type="number" min="0" inputmode="numeric" placeholder="e.g., 8" style="width:100%; padding:10px; border:1px solid #ccc;" />
-          </div>
-          <div style="flex:1;">
-            <div style="font-weight:700; margin-bottom:4px;">End SOG — Home (${state.home})</div>
-            <input id="r_sog_home" type="number" min="0" inputmode="numeric" placeholder="e.g., 11" style="width:100%; padding:10px; border:1px solid #ccc;" />
-          </div>
-        </div>
+                <div style="font-weight:700;">Goals?</div>
+                <label style="display:flex; gap:8px; align-items:center;">
+                  <input type="checkbox" id="r_goal_y" ${r.goal === "Yes" ? "checked" : ""} />
+                  <span>Yes</span>
+                </label>
+                <label style="display:flex; gap:8px; align-items:center;">
+                  <input type="checkbox" id="r_goal_n" ${r.goal === "No" ? "checked" : ""} />
+                  <span>No</span>
+                </label>
 
-        <button id="lockP1Results">Lock Period 1 Results</button>
+                <div style="font-weight:700;">Penalty?</div>
+                <label style="display:flex; gap:8px; align-items:center;">
+                  <input type="checkbox" id="r_pen_y" ${r.penalty === "Yes" ? "checked" : ""} />
+                  <span>Yes</span>
+                </label>
+                <label style="display:flex; gap:8px; align-items:center;">
+                  <input type="checkbox" id="r_pen_n" ${r.penalty === "No" ? "checked" : ""} />
+                  <span>No</span>
+                </label>
+              </div>
+            </div>
 
-        <div style="margin-top:8px; font-size:0.9rem; opacity:0.75;">
-          Start-of-game SOG assumed: Away 0, Home 0. (Later periods: start = last period end)
-        </div>
-      `;
+            <div style="margin-top:12px; font-weight:700;">Period 1 SOG</div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap; margin:8px 0;">
+              <div style="flex:1; min-width:220px;">
+                <div style="font-weight:700; margin-bottom:4px;">${state.away}</div>
+                <input id="r_sog_away" type="number" min="0" inputmode="numeric"
+                       value="${r.endSogAway ?? ""}"
+                       placeholder="End of period total SOG"
+                       style="width:100%; padding:10px; border:1px solid #ccc;" />
+              </div>
+              <div style="flex:1; min-width:220px;">
+                <div style="font-weight:700; margin-bottom:4px;">${state.home}</div>
+                <input id="r_sog_home" type="number" min="0" inputmode="numeric"
+                       value="${r.endSogHome ?? ""}"
+                       placeholder="End of period total SOG"
+                       style="width:100%; padding:10px; border:1px solid #ccc;" />
+              </div>
+            </div>
 
-    const computed = p1.computed ? renderP1ComputedSummary() : "";
+            <button id="lockP1Results">Lock Period 1 Results</button>
 
-    return `
-      <div style="margin-top:12px; border:1px solid #ddd; padding:10px;">
-        <div style="font-weight:700; margin-bottom:6px;">Period 1 Results (House)</div>
-        ${note}
-        ${lockedUI}
-        ${computed}
-      </div>
-    `;
-  };
+            <div style="margin-top:8px; font-size:0.9rem; opacity:0.75;">
+              Start-of-game SOG assumed: Away 0, Home 0. (Later periods: start = last period end)
+            </div>
+          `
+      }
+
+      ${p1.computed ? renderP1ComputedSummary() : ""}
+    </div>
+  ` : `<div style="margin-top:12px; font-size:0.95rem; opacity:0.75;">Lock all picks to enter results.</div>`;
 
   const continueHTML = (p1.computed && p1.lockedResults)
     ? `<button id="toP2Stub">Continue to Period 2</button>`
@@ -353,7 +385,7 @@ function renderPeriod1() {
       ${qCard("Q2: Will there be a penalty this period?", picks.q2_penalty, "p1q2")}
       ${qCard("Q3: Will each team record at least 5 shots on goal this period?", picks.q3_both5sog, "p1q3")}
 
-      ${allLocked ? resultsPanel() : `<div style="margin-top:12px; font-size:0.95rem; opacity:0.75;">Lock all picks to enter results.</div>`}
+      ${resultsPanel}
 
       <div style="display:flex; gap:10px; margin-top:12px;">
         <button id="backToQ2">Back</button>
@@ -371,7 +403,7 @@ function renderP1ComputedSummary() {
   const winnerText = c.periodWinner === "player"
     ? `${state.player1} wins Period 1 ✅ (DOG +1)`
     : c.periodWinner === "house"
-      ? `${state.house} wins Period 1 ✅ (House may terminate 1 DOG)`
+      ? `${state.house} wins Period 1 ✅ (House terminates 1 DOG if available)`
       : `Period 1 is a tie (no DOG changes)`;
 
   return `
@@ -387,6 +419,9 @@ function renderP1ComputedSummary() {
   `;
 }
 
+/* -------------------------
+   Wiring / Handlers
+-------------------------- */
 function wireHandlers() {
   // Global: disable LIVE
   const disableLive = document.getElementById("disableLive");
@@ -397,12 +432,11 @@ function wireHandlers() {
     };
   }
 
-  // Navigation + wiring per screen
   if (state.screen === "pre_q1") wirePreQ1Buttons();
   if (state.screen === "pre_q2") wirePreQ2Buttons();
   if (state.screen === "p1") wireP1Buttons();
 
-  // Nav buttons
+  // Nav
   const toQ2 = document.getElementById("toQ2");
   if (toQ2) toQ2.onclick = () => { state.screen = "pre_q2"; render(); };
 
@@ -452,8 +486,9 @@ function wirePreQ2Buttons() {
 
 function wireP1Buttons() {
   const p1 = state.periods.p1;
+  const r = p1.results;
 
-  // Helper to wire yes/no for a pickState
+  // Wire yes/no for sealed picks
   const wirePickYesNo = (pickState, prefix) => {
     const pYes = document.getElementById(`${prefix}_player_Yes`);
     const pNo = document.getElementById(`${prefix}_player_No`);
@@ -470,29 +505,66 @@ function wireP1Buttons() {
   wirePickYesNo(p1.picks.q2_penalty, "p1q2");
   wirePickYesNo(p1.picks.q3_both5sog, "p1q3");
 
-  // Results buttons (only exist once all picks locked and results not locked)
-  const rGoalYes = document.getElementById("r_goal_yes");
-  const rGoalNo = document.getElementById("r_goal_no");
-  if (rGoalYes) rGoalYes.onclick = () => { p1.results.goal = "Yes"; render(); };
-  if (rGoalNo) rGoalNo.onclick = () => { p1.results.goal = "No"; render(); };
+  // Results checkboxes (mutually exclusive per row) + persist to state without rerender
+  const goalY = document.getElementById("r_goal_y");
+  const goalN = document.getElementById("r_goal_n");
+  const penY = document.getElementById("r_pen_y");
+  const penN = document.getElementById("r_pen_n");
 
-  const rPenYes = document.getElementById("r_pen_yes");
-  const rPenNo = document.getElementById("r_pen_no");
-  if (rPenYes) rPenYes.onclick = () => { p1.results.penalty = "Yes"; render(); };
-  if (rPenNo) rPenNo.onclick = () => { p1.results.penalty = "No"; render(); };
+  if (goalY && goalN) {
+    goalY.onchange = () => {
+      if (goalY.checked) { goalN.checked = false; r.goal = "Yes"; }
+      else if (!goalN.checked) { r.goal = null; }
+      saveState();
+    };
+    goalN.onchange = () => {
+      if (goalN.checked) { goalY.checked = false; r.goal = "No"; }
+      else if (!goalY.checked) { r.goal = null; }
+      saveState();
+    };
+  }
 
+  if (penY && penN) {
+    penY.onchange = () => {
+      if (penY.checked) { penN.checked = false; r.penalty = "Yes"; }
+      else if (!penN.checked) { r.penalty = null; }
+      saveState();
+    };
+    penN.onchange = () => {
+      if (penN.checked) { penY.checked = false; r.penalty = "No"; }
+      else if (!penY.checked) { r.penalty = null; }
+      saveState();
+    };
+  }
+
+  // Persist SOG while typing (without rerender)
+  const sogAway = document.getElementById("r_sog_away");
+  const sogHome = document.getElementById("r_sog_home");
+
+  if (sogAway) {
+    sogAway.oninput = () => {
+      const v = parseInt(sogAway.value, 10);
+      r.endSogAway = Number.isNaN(v) ? null : v;
+      saveState();
+    };
+  }
+  if (sogHome) {
+    sogHome.oninput = () => {
+      const v = parseInt(sogHome.value, 10);
+      r.endSogHome = Number.isNaN(v) ? null : v;
+      saveState();
+    };
+  }
+
+  // Lock results button
   const lockBtn = document.getElementById("lockP1Results");
   if (lockBtn) {
     lockBtn.onclick = () => {
-      // Validate results
-      const awayInput = document.getElementById("r_sog_away");
-      const homeInput = document.getElementById("r_sog_home");
+      const endAway = r.endSogAway;
+      const endHome = r.endSogHome;
 
-      const endAway = awayInput ? parseInt(awayInput.value, 10) : NaN;
-      const endHome = homeInput ? parseInt(homeInput.value, 10) : NaN;
-
-      if (!p1.results.goal || !p1.results.penalty || Number.isNaN(endAway) || Number.isNaN(endHome)) {
-        alert("House must set Goal, Penalty, and enter end SOG totals for Away and Home.");
+      if (!r.goal || !r.penalty || endAway === null || endHome === null) {
+        alert("House must select Y/N for Goals and Penalty, and enter end SOG totals for both teams.");
         return;
       }
       if (endAway < 0 || endHome < 0) {
@@ -504,7 +576,6 @@ function wireP1Buttons() {
       const startAway = state.sog.start.away ?? 0;
       const startHome = state.sog.start.home ?? 0;
 
-      // Period SOG = end - start (never negative; House can fix if needed)
       const periodAway = endAway - startAway;
       const periodHome = endHome - startHome;
 
@@ -513,53 +584,54 @@ function wireP1Buttons() {
         return;
       }
 
-      // Compute correctness for each side
+      // Compute truth + correctness
+      const q3Truth = (periodAway >= 5 && periodHome >= 5) ? "Yes" : "No";
+
       const correct = {
         q1: {
-          player: p1.picks.q1_goal.player === p1.results.goal,
-          house: p1.picks.q1_goal.house === p1.results.goal
+          player: p1.picks.q1_goal.player === r.goal,
+          house: p1.picks.q1_goal.house === r.goal
         },
         q2: {
-          player: p1.picks.q2_penalty.player === p1.results.penalty,
-          house: p1.picks.q2_penalty.house === p1.results.penalty
+          player: p1.picks.q2_penalty.player === r.penalty,
+          house: p1.picks.q2_penalty.house === r.penalty
         },
-        q3: (() => {
-          const truth = (periodAway >= 5 && periodHome >= 5) ? "Yes" : "No";
-          return {
-            truth,
-            player: p1.picks.q3_both5sog.player === truth,
-            house: p1.picks.q3_both5sog.house === truth
-          };
-        })()
+        q3: {
+          truth: q3Truth,
+          player: p1.picks.q3_both5sog.player === q3Truth,
+          house: p1.picks.q3_both5sog.house === q3Truth
+        }
       };
 
-      const playerCorrect = (correct.q1.player ? 1 : 0) + (correct.q2.player ? 1 : 0) + (correct.q3.player ? 1 : 0);
-      const houseCorrect  = (correct.q1.house ? 1 : 0) + (correct.q2.house ? 1 : 0) + (correct.q3.house ? 1 : 0);
+      const playerCorrect =
+        (correct.q1.player ? 1 : 0) +
+        (correct.q2.player ? 1 : 0) +
+        (correct.q3.player ? 1 : 0);
+
+      const houseCorrect =
+        (correct.q1.house ? 1 : 0) +
+        (correct.q2.house ? 1 : 0) +
+        (correct.q3.house ? 1 : 0);
 
       // Period winner: best 2 of 3 (tie -> nobody)
       let periodWinner = "none";
       if (playerCorrect >= 2 && houseCorrect < 2) periodWinner = "player";
       else if (houseCorrect >= 2 && playerCorrect < 2) periodWinner = "house";
-      else periodWinner = "none";
 
-      // DOG effects (P1)
+      // DOG effects
       if (periodWinner === "player") {
         state.dogs = (state.dogs ?? 0) + 1;
       } else if (periodWinner === "house") {
-        // House may terminate 1 DOG (if any). In P1 dogs likely 0, but enforce rule.
         state.dogs = Math.max(0, (state.dogs ?? 0) - 1);
       }
 
-      // Lock results + store computed summary
-      p1.results.endSogAway = endAway;
-      p1.results.endSogHome = endHome;
+      // Lock + store computed summary
       p1.lockedResults = true;
-
       p1.computed = {
         startSog: { away: startAway, home: startHome },
         endSog: { away: endAway, home: endHome },
         periodSog: { away: periodAway, home: periodHome },
-        q3Truth: correct.q3.truth,
+        q3Truth,
         playerCorrect,
         houseCorrect,
         periodWinner
