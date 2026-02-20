@@ -1,19 +1,12 @@
 // BOTD — game.js (drop-in)
-// Includes:
-// - Away @ Home convention
-// - "House" terminology (+ back-compat from scorekeeper)
-// - Sealed picks (hidden after lock; only 🔒 Locked shows)
-// - Pre-Game Q1 + Q2
-// - Period 1: 3 sealed questions + House results panel
-// - Period 2: same + DOG spending ("scratch" one House question; Option #1)
-// - Results UI: Y/N checkbox-style selectors (mutually exclusive) + SOG totals
-// - SOG logic: start at 0/0 then carry forward by period; House enters end totals
-// - LIVE scaffolding + House override to disable LIVE anytime (API later)
-// - Back button behavior:
-//   * BACK first undoes last action on that screen (if available)
-//   * Once "Start Period 1" is pressed, pregame undo is disabled (locked-in)
-//   * Once "Continue to Period 2" is pressed, Period 1 undo is disabled (locked-in)
-//   * Once "Continue to Period 3" is pressed, Period 2 undo is disabled (locked-in)
+// Adds:
+// - Period 3
+// - "Good Boy!" bonus (if Player wins P3): roll d6, map to P1/P2 Q1-3, award +1 if that question was correct
+// - Scoreboard actually increments based on correctness when results are locked
+// - Undo rolls back period state + score + dogs + sog
+// Notes:
+// - Pre-game Q1/Q2 scoring is still pending (needs final game outcome). This file focuses on period scoring + Good Boy.
+// - OT/SO still stubbed after Good Boy.
 
 const state = JSON.parse(localStorage.getItem("botd_state"));
 const gameEl = document.getElementById("game");
@@ -32,25 +25,30 @@ if (!state) {
   state.live = !!state.live;
 
   // Routing
-  state.screen = state.screen ?? "pre_q1"; // pre_q1 -> pre_q2 -> p1 -> p2 -> p3_stub
+  state.screen = state.screen ?? "pre_q1"; // pre_q1 -> pre_q2 -> p1 -> p2 -> p3 -> goodboy -> postgame_stub
 
   // Commit flags (lock-in points)
   state.committed = state.committed ?? {
     pregame: false, // true when Period 1 starts
     p1: false,      // true when Period 2 starts
-    p2: false       // true when Period 3 starts (stub)
+    p2: false,      // true when Period 3 starts
+    p3: false       // true when leaving Period 3
   };
 
   // Undo stacks
   state.undo = state.undo ?? {
     pre_q2: [],
     p1: [],
-    p2: []
+    p2: [],
+    p3: [],
+    goodboy: []
   };
   state.undoSig = state.undoSig ?? {
     pre_q2: null,
     p1: null,
-    p2: null
+    p2: null,
+    p3: null,
+    goodboy: null
   };
 
   // Shots-on-goal tracking (totals)
@@ -68,6 +66,16 @@ if (!state) {
   state.periods = state.periods ?? {};
   state.periods.p1 = state.periods.p1 ?? mkPeriodState(1);
   state.periods.p2 = state.periods.p2 ?? mkPeriodState(2);
+  state.periods.p3 = state.periods.p3 ?? mkPeriodState(3);
+
+  // Good Boy state
+  state.goodBoy = state.goodBoy ?? {
+    earned: false,
+    resolved: false,
+    roll: null,      // 1..6
+    target: null,    // "p1.q1" etc
+    success: null    // true/false
+  };
 
   render();
 }
@@ -112,39 +120,44 @@ function saveState() {
   localStorage.setItem("botd_state", JSON.stringify(state));
 }
 
-// ----- Snapshot helpers (important: periods can affect dogs + sog) -----
+// ----- Snapshot helpers (periods affect score + dogs + sog) -----
 function snapPreQ2() {
   return clone(state.pre.q2);
 }
-
-function snapP1() {
+function snapPeriod(key) {
   return clone({
-    p1: state.periods.p1,
+    period: state.periods[key],
+    score: state.score,
     dogs: state.dogs,
-    sog: state.sog
+    sog: state.sog,
+    goodBoy: state.goodBoy,
+    screen: state.screen
   });
 }
-
-function snapP2() {
+function snapGoodBoy() {
   return clone({
-    p2: state.periods.p2,
-    dogs: state.dogs,
-    sog: state.sog
+    score: state.score,
+    goodBoy: state.goodBoy,
+    screen: state.screen
   });
 }
 
 // Push undo snapshot only if not committed and snapshot differs from last pushed
 function pushUndo(key, snapshotObj) {
+  // commitments stop undo for that stage
   if (key === "pre_q2" && state.committed.pregame) return;
   if (key === "p1" && state.committed.p1) return;
   if (key === "p2" && state.committed.p2) return;
+  if (key === "p3" && state.committed.p3) return;
+  // goodboy undo allowed until resolved
+  if (key === "goodboy" && state.goodBoy.resolved) return;
 
   const sig = JSON.stringify(snapshotObj);
-  if (state.undoSig[key] === sig) return; // avoid spam duplicates
+  if (state.undoSig[key] === sig) return;
   state.undoSig[key] = sig;
 
   state.undo[key].push(snapshotObj);
-  if (state.undo[key].length > 35) state.undo[key].shift();
+  if (state.undo[key].length > 40) state.undo[key].shift();
   saveState();
 }
 
@@ -161,24 +174,25 @@ function tryUndo(key, applyFn) {
   return true;
 }
 
-function commitPregame() {
-  state.committed.pregame = true;
-  state.undo.pre_q2 = [];
-  state.undoSig.pre_q2 = null;
-  saveState();
-}
-
-function commitP1() {
-  state.committed.p1 = true;
-  state.undo.p1 = [];
-  state.undoSig.p1 = null;
-  saveState();
-}
-
-function commitP2() {
-  state.committed.p2 = true;
-  state.undo.p2 = [];
-  state.undoSig.p2 = null;
+function commitStage(stageKey) {
+  state.committed[stageKey] = true;
+  // clear that stage undo stack
+  if (stageKey === "pregame") {
+    state.undo.pre_q2 = [];
+    state.undoSig.pre_q2 = null;
+  }
+  if (stageKey === "p1") {
+    state.undo.p1 = [];
+    state.undoSig.p1 = null;
+  }
+  if (stageKey === "p2") {
+    state.undo.p2 = [];
+    state.undoSig.p2 = null;
+  }
+  if (stageKey === "p3") {
+    state.undo.p3 = [];
+    state.undoSig.p3 = null;
+  }
   saveState();
 }
 
@@ -187,7 +201,7 @@ function render() {
   const home = state.home;
 
   const headerHTML = `
-    <div style="border:1px solid #ccc; padding:12px; max-width:820px;">
+    <div style="border:1px solid #ccc; padding:12px; max-width:860px;">
       <h2 style="margin-top:0;">${away} @ ${home}</h2>
 
       <div style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap;">
@@ -216,31 +230,19 @@ function render() {
   else if (state.screen === "pre_q2") screenHTML = renderPreQ2();
   else if (state.screen === "p1") screenHTML = renderPeriod("p1");
   else if (state.screen === "p2") screenHTML = renderPeriod("p2");
-  else if (state.screen === "p3_stub") {
-    screenHTML = `
-      <div style="margin-top:16px; border:1px solid #ccc; padding:12px; max-width:820px;">
-        <h3 style="margin-top:0;">Period 3 (Next)</h3>
-        <p>Period 2 is complete. Next up: Period 3 + “Good Boy!” + OT/SO (later).</p>
-        <button id="backToP2">Back</button>
-      </div>
-    `;
-  } else {
-    screenHTML = `
-      <div style="margin-top:16px; border:1px solid #ccc; padding:12px; max-width:820px;">
-        <p>Unknown screen: ${state.screen}</p>
-      </div>
-    `;
-  }
+  else if (state.screen === "p3") screenHTML = renderPeriod("p3", { p3Mode: true });
+  else if (state.screen === "goodboy") screenHTML = renderGoodBoy();
+  else if (state.screen === "postgame_stub") screenHTML = renderPostgameStub();
+  else screenHTML = `<div style="margin-top:16px;border:1px solid #ccc;padding:12px;max-width:860px;">Unknown screen: ${state.screen}</div>`;
 
   gameEl.innerHTML = `${headerHTML}${screenHTML}`;
-
   wireHandlers();
   saveState();
 }
 
 function renderSideBySideQuestion({ title, questionText, leftName, rightName, leftSectionHTML, rightSectionHTML, backHTML = "", continueHTML = "" }) {
   return `
-    <div style="margin-top:16px; border:1px solid #ccc; padding:12px; max-width:820px;">
+    <div style="margin-top:16px; border:1px solid #ccc; padding:12px; max-width:860px;">
       <h3 style="margin-top:0;">${title}</h3>
       <p><strong>${questionText}</strong></p>
 
@@ -249,9 +251,7 @@ function renderSideBySideQuestion({ title, questionText, leftName, rightName, le
           <div style="font-weight:700; margin-bottom:6px;">${leftName}</div>
           ${leftSectionHTML}
         </div>
-
         <div style="width:1px; background:#eee; align-self:stretch;"></div>
-
         <div style="flex:1; border-top:1px solid #eee; padding-top:10px;">
           <div style="font-weight:700; margin-bottom:6px;">${rightName}</div>
           ${rightSectionHTML}
@@ -290,29 +290,25 @@ function sealedYesNoSection({ idPrefix, lockedSelf, lockedOther, requireOtherLoc
 }
 
 /* -------------------------
-   Pre-Game Q1
+   Pre-Game Q1 / Q2
 -------------------------- */
 function renderPreQ1() {
   const q1 = state.pre.q1;
 
   const playerSection = q1.lockedPlayer
     ? `<div style="margin:8px 0;"><strong>🔒 Locked</strong></div>`
-    : `
-      <div style="display:flex; gap:10px; flex-wrap:wrap; margin:10px 0;">
-        <button id="q1_playerAway">${state.away}</button>
-        <button id="q1_playerHome">${state.home}</button>
-      </div>
-    `;
+    : `<div style="display:flex; gap:10px; flex-wrap:wrap; margin:10px 0;">
+         <button id="q1_playerAway">${state.away}</button>
+         <button id="q1_playerHome">${state.home}</button>
+       </div>`;
 
   const houseSection = q1.lockedHouse
     ? `<div style="margin:8px 0;"><strong>🔒 Locked</strong></div>`
-    : `
-      <div style="display:flex; gap:10px; flex-wrap:wrap; margin:10px 0;">
-        <button id="q1_houseAway" ${!q1.lockedPlayer ? "disabled" : ""}>${state.away}</button>
-        <button id="q1_houseHome" ${!q1.lockedPlayer ? "disabled" : ""}>${state.home}</button>
-      </div>
-      ${!q1.lockedPlayer ? `<div style="font-size:0.95rem; opacity:0.8;">Player locks first.</div>` : ""}
-    `;
+    : `<div style="display:flex; gap:10px; flex-wrap:wrap; margin:10px 0;">
+         <button id="q1_houseAway" ${!q1.lockedPlayer ? "disabled" : ""}>${state.away}</button>
+         <button id="q1_houseHome" ${!q1.lockedPlayer ? "disabled" : ""}>${state.home}</button>
+       </div>
+       ${!q1.lockedPlayer ? `<div style="font-size:0.95rem; opacity:0.8;">Player locks first.</div>` : ""}`;
 
   const continueHTML = (q1.lockedPlayer && q1.lockedHouse) ? `<button id="toQ2">Continue</button>` : "";
 
@@ -327,9 +323,6 @@ function renderPreQ1() {
   });
 }
 
-/* -------------------------
-   Pre-Game Q2
--------------------------- */
 function renderPreQ2() {
   const q2 = state.pre.q2;
 
@@ -363,27 +356,26 @@ function renderPreQ2() {
 }
 
 /* -------------------------
-   Shared Period renderer (P1 / P2)
+   Periods (shared)
 -------------------------- */
-function renderPeriod(key) {
+function renderPeriod(key, opts = {}) {
   const p = state.periods[key];
   const picks = p.picks;
   const r = p.results;
+  const isP2 = key === "p2";
 
   const anyPlayerLocked =
-    picks.q1_goal.lockedPlayer ||
-    picks.q2_penalty.lockedPlayer ||
-    picks.q3_both5sog.lockedPlayer;
+    picks.q1_goal.lockedPlayer || picks.q2_penalty.lockedPlayer || picks.q3_both5sog.lockedPlayer;
 
   const canSpendDog =
-    key === "p2" &&
+    isP2 &&
     state.dogs > 0 &&
     !p.dogSpend.used &&
     !anyPlayerLocked &&
     !p.lockedResults;
 
   const scratchPanel = canSpendDog ? `
-    <div style="margin-top:12px; border:1px solid #ddd; padding:10px; max-width:820px;">
+    <div style="margin-top:12px; border:1px solid #ddd; padding:10px; max-width:860px;">
       <div style="font-weight:800; margin-bottom:6px;">Spend a DOG? 🐶 (Period 2 only)</div>
       <div style="opacity:0.85; margin-bottom:10px;">
         Spend <strong>1 DOG</strong> to scratch <strong>one House question</strong> this period (House can’t answer or score it).
@@ -394,13 +386,14 @@ function renderPeriod(key) {
         <button id="scratch_q2">Scratch Q2 (Penalty?)</button>
         <button id="scratch_q3">Scratch Q3 (Both 5+ SOG?)</button>
       </div>
-      <div style="margin-top:8px; font-size:0.9rem; opacity:0.75;">
-        DOGs remaining: ${state.dogs}
-      </div>
+      <div style="margin-top:8px; font-size:0.9rem; opacity:0.75;">DOGs remaining: ${state.dogs}</div>
     </div>
   ` : "";
 
-  const qCard = (label, pickState, idPrefix, scratchedForHouse = false) => {
+  const scratched = isP2 ? p.dogSpend.scratched : null;
+  const isScratched = (qid) => scratched === qid;
+
+  const qCard = (label, pickState, idPrefix, qid) => {
     const playerSection = sealedYesNoSection({
       idPrefix: `${idPrefix}_player`,
       lockedSelf: pickState.lockedPlayer,
@@ -413,10 +406,10 @@ function renderPeriod(key) {
       lockedSelf: pickState.lockedHouse,
       lockedOther: pickState.lockedPlayer,
       requireOtherLock: true,
-      disabledAll: scratchedForHouse
+      disabledAll: isP2 && isScratched(qid)
     });
 
-    const ready = pickState.lockedPlayer && (scratchedForHouse || pickState.lockedHouse);
+    const ready = pickState.lockedPlayer && ((isP2 && isScratched(qid)) || pickState.lockedHouse);
 
     return `
       <div style="border:1px solid #eee; padding:10px; margin-top:10px;">
@@ -437,20 +430,17 @@ function renderPeriod(key) {
     `;
   };
 
-  const scratched = (key === "p2") ? p.dogSpend.scratched : null;
-  const isScratched = (qid) => scratched === qid;
-
   const allLocked =
-    picks.q1_goal.lockedPlayer && (isScratched("q1_goal") || picks.q1_goal.lockedHouse) &&
-    picks.q2_penalty.lockedPlayer && (isScratched("q2_penalty") || picks.q2_penalty.lockedHouse) &&
-    picks.q3_both5sog.lockedPlayer && (isScratched("q3_both5sog") || picks.q3_both5sog.lockedHouse);
+    picks.q1_goal.lockedPlayer && ((isP2 && isScratched("q1_goal")) || picks.q1_goal.lockedHouse) &&
+    picks.q2_penalty.lockedPlayer && ((isP2 && isScratched("q2_penalty")) || picks.q2_penalty.lockedHouse) &&
+    picks.q3_both5sog.lockedPlayer && ((isP2 && isScratched("q3_both5sog")) || picks.q3_both5sog.lockedHouse);
 
   const resultsNote = state.live
     ? `<div style="font-size:0.9rem; opacity:0.75; margin-bottom:8px;">LIVE is ON (API later). House can still enter results now.</div>`
     : `<div style="font-size:0.9rem; opacity:0.75; margin-bottom:8px;">House enters end-of-period totals.</div>`;
 
   const resultsPanel = allLocked ? `
-    <div style="margin-top:12px; border:1px solid #ddd; padding:10px; max-width:820px;">
+    <div style="margin-top:12px; border:1px solid #ddd; padding:10px; max-width:860px;">
       <div style="font-weight:700; margin-bottom:6px;">Period ${p.n} Results (House)</div>
       ${resultsNote}
 
@@ -516,30 +506,36 @@ function renderPeriod(key) {
     </div>
   ` : `<div style="margin-top:12px; font-size:0.95rem; opacity:0.75;">Lock all picks to enter results.</div>`;
 
-  const backBtnId = key === "p1" ? "backToQ2" : "backToP1";
-  const backLabel = "Back";
+  const backBtnId = key === "p1" ? "backToQ2" : (key === "p2" ? "backToP1" : "backToP2");
+  const continueId = key === "p1" ? "toP2" : (key === "p2" ? "toP3" : "toGoodBoy");
+  const continueLabel = key === "p1" ? "Continue to Period 2" : (key === "p2" ? "Continue to Period 3" : "Continue");
 
   const continueHTML =
     (p.computed && p.lockedResults)
-      ? (key === "p1"
-          ? `<button id="toP2">Continue to Period 2</button>`
-          : `<button id="toP3Stub">Continue to Period 3</button>`)
+      ? `<button id="${continueId}">${continueLabel}</button>`
       : "";
 
+  const p3Banner = opts.p3Mode ? `
+    <div style="margin-top:10px; padding:10px; border:1px dashed #bbb; opacity:0.95;">
+      <strong>Period 3 note:</strong> If ${state.player1} wins Period 3, that DOG becomes <strong>“Good Boy!”</strong>
+      and triggers a d6 bonus roll against Periods 1–2.
+    </div>
+  ` : "";
+
   return `
-    <div style="margin-top:16px; border:1px solid #ccc; padding:12px; max-width:820px;">
+    <div style="margin-top:16px; border:1px solid #ccc; padding:12px; max-width:860px;">
       <h3 style="margin-top:0;">Period ${p.n} (3 pts possible)</h3>
-
       ${scratchPanel}
+      ${p3Banner}
 
-      ${qCard("Q1: Will there be a goal this period?", picks.q1_goal, `${key}q1`, isScratched("q1_goal"))}
-      ${qCard("Q2: Will there be a penalty this period?", picks.q2_penalty, `${key}q2`, isScratched("q2_penalty"))}
-      ${qCard("Q3: Will each team record at least 5 shots on goal this period?", picks.q3_both5sog, `${key}q3`, isScratched("q3_both5sog"))}
+      ${qCard("Q1: Will there be a goal this period?", picks.q1_goal, `${key}q1`, "q1_goal")}
+      ${qCard("Q2: Will there be a penalty this period?", picks.q2_penalty, `${key}q2`, "q2_penalty")}
+      ${qCard("Q3: Will each team record at least 5 shots on goal this period?", picks.q3_both5sog, `${key}q3`, "q3_both5sog")}
 
       ${resultsPanel}
 
       <div style="display:flex; gap:10px; margin-top:12px;">
-        <button id="${backBtnId}">${backLabel}</button>
+        <button id="${backBtnId}">Back</button>
         ${continueHTML}
       </div>
     </div>
@@ -584,6 +580,71 @@ function prettyQ(qid) {
 }
 
 /* -------------------------
+   Good Boy
+-------------------------- */
+function renderGoodBoy() {
+  const gb = state.goodBoy;
+
+  const mapping = `
+    <div style="margin-top:10px; font-size:0.95rem; opacity:0.85;">
+      <div style="font-weight:700; margin-bottom:6px;">d6 Mapping</div>
+      <div>1 = P1 Q1 (Goal?)</div>
+      <div>2 = P1 Q2 (Penalty?)</div>
+      <div>3 = P1 Q3 (Both 5+ SOG?)</div>
+      <div>4 = P2 Q1 (Goal?)</div>
+      <div>5 = P2 Q2 (Penalty?)</div>
+      <div>6 = P2 Q3 (Both 5+ SOG?)</div>
+    </div>
+  `;
+
+  const status = gb.resolved
+    ? `<div style="margin-top:10px; padding:10px; border:1px solid #eee;">
+         <div style="font-weight:800;">Result</div>
+         <div style="margin-top:6px;">Roll: <strong>${gb.roll}</strong> → Target: <strong>${gb.target}</strong></div>
+         <div style="margin-top:6px;">Bonus: ${gb.success ? "<strong>+1 point ✅</strong>" : "<strong>No bonus</strong>"}</div>
+       </div>`
+    : "";
+
+  return `
+    <div style="margin-top:16px; border:1px solid #ccc; padding:12px; max-width:860px;">
+      <h3 style="margin-top:0;">Good Boy! 🐶 (Bonus Point)</h3>
+      <p>
+        You won Period 3, so you earned a <strong>Good Boy</strong>.
+        Roll a d6 to see which Period 1–2 question gets checked for a bonus point.
+      </p>
+
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button id="gbRoll" ${gb.resolved ? "disabled" : ""}>Roll d6</button>
+        <label style="display:flex; gap:8px; align-items:center;">
+          <span>House manual roll:</span>
+          <input id="gbManual" type="number" min="1" max="6" inputmode="numeric" style="width:80px;" ${gb.resolved ? "disabled" : ""}/>
+          <button id="gbSetManual" ${gb.resolved ? "disabled" : ""}>Set</button>
+        </label>
+      </div>
+
+      ${mapping}
+      ${status}
+
+      <div style="display:flex; gap:10px; margin-top:12px;">
+        <button id="backToP3">Back</button>
+        <button id="toPostgame">Continue</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderPostgameStub() {
+  return `
+    <div style="margin-top:16px; border:1px solid #ccc; padding:12px; max-width:860px;">
+      <h3 style="margin-top:0;">Next: OT / Shootout (later)</h3>
+      <p>Core game is complete through Period 3 + Good Boy.</p>
+      <p>Next we’ll add OT and Shootout logic here.</p>
+      <button id="backToGoodBoy">Back</button>
+    </div>
+  `;
+}
+
+/* -------------------------
    Wiring / Handlers
 -------------------------- */
 function wireHandlers() {
@@ -596,17 +657,17 @@ function wireHandlers() {
     };
   }
 
-  // Screen-specific wiring
   if (state.screen === "pre_q1") wirePreQ1Buttons();
   if (state.screen === "pre_q2") wirePreQ2Buttons();
   if (state.screen === "p1") wirePeriodButtons("p1");
   if (state.screen === "p2") wirePeriodButtons("p2");
+  if (state.screen === "p3") wirePeriodButtons("p3");
+  if (state.screen === "goodboy") wireGoodBoyButtons();
 
-  // Nav: Q1 -> Q2
+  // Nav
   const toQ2 = document.getElementById("toQ2");
   if (toQ2) toQ2.onclick = () => { state.screen = "pre_q2"; render(); };
 
-  // Back from Q2: undo first, else go to Q1
   const backToQ1 = document.getElementById("backToQ1");
   if (backToQ1) {
     backToQ1.onclick = () => {
@@ -618,24 +679,25 @@ function wireHandlers() {
     };
   }
 
-  // Start Period 1: commits pregame (disables pregame undo)
   const toP1 = document.getElementById("toP1");
   if (toP1) {
     toP1.onclick = () => {
-      commitPregame();
+      commitStage("pregame");
       state.screen = "p1";
       render();
     };
   }
 
-  // Back from P1: undo first, else go back to Q2 ONLY if pregame not committed
   const backToQ2 = document.getElementById("backToQ2");
   if (backToQ2) {
     backToQ2.onclick = () => {
       const undone = tryUndo("p1", (snap) => {
-        state.periods.p1 = snap.p1;
+        state.periods.p1 = snap.period;
+        state.score = snap.score;
         state.dogs = snap.dogs;
         state.sog = snap.sog;
+        state.goodBoy = snap.goodBoy;
+        state.screen = snap.screen;
       });
       if (!undone) {
         if (!state.committed.pregame) state.screen = "pre_q2";
@@ -644,44 +706,73 @@ function wireHandlers() {
     };
   }
 
-  // Continue to Period 2: commits P1
   const toP2 = document.getElementById("toP2");
   if (toP2) {
     toP2.onclick = () => {
-      commitP1();
+      commitStage("p1");
       state.screen = "p2";
       render();
     };
   }
 
-  // Back from P2: undo first, else stay (P1 is committed)
   const backToP1 = document.getElementById("backToP1");
   if (backToP1) {
     backToP1.onclick = () => {
       const undone = tryUndo("p2", (snap) => {
-        state.periods.p2 = snap.p2;
+        state.periods.p2 = snap.period;
+        state.score = snap.score;
         state.dogs = snap.dogs;
         state.sog = snap.sog;
+        state.goodBoy = snap.goodBoy;
+        state.screen = snap.screen;
       });
-      if (!undone) {
-        // P1 committed, so we don't navigate back; just re-render.
-        render();
-      }
+      if (!undone) render();
     };
   }
 
-  // Continue to Period 3 (stub): commits P2
-  const toP3Stub = document.getElementById("toP3Stub");
-  if (toP3Stub) {
-    toP3Stub.onclick = () => {
-      commitP2();
-      state.screen = "p3_stub";
+  const toP3 = document.getElementById("toP3");
+  if (toP3) {
+    toP3.onclick = () => {
+      commitStage("p2");
+      state.screen = "p3";
       render();
     };
   }
 
   const backToP2 = document.getElementById("backToP2");
-  if (backToP2) backToP2.onclick = () => { state.screen = "p2"; render(); };
+  if (backToP2) {
+    backToP2.onclick = () => {
+      const undone = tryUndo("p3", (snap) => {
+        state.periods.p3 = snap.period;
+        state.score = snap.score;
+        state.dogs = snap.dogs;
+        state.sog = snap.sog;
+        state.goodBoy = snap.goodBoy;
+        state.screen = snap.screen;
+      });
+      if (!undone) render();
+    };
+  }
+
+  const toGoodBoy = document.getElementById("toGoodBoy");
+  if (toGoodBoy) {
+    toGoodBoy.onclick = () => {
+      commitStage("p3");
+      // Only go to Good Boy if earned; else go to postgame stub.
+      if (state.goodBoy.earned) state.screen = "goodboy";
+      else state.screen = "postgame_stub";
+      render();
+    };
+  }
+
+  const toPostgame = document.getElementById("toPostgame");
+  if (toPostgame) toPostgame.onclick = () => { state.screen = "postgame_stub"; render(); };
+
+  const backToGoodBoy = document.getElementById("backToGoodBoy");
+  if (backToGoodBoy) backToGoodBoy.onclick = () => { state.screen = "goodboy"; render(); };
+
+  const backToP3 = document.getElementById("backToP3");
+  if (backToP3) backToP3.onclick = () => { state.screen = "p3"; render(); };
 }
 
 function wirePreQ1Buttons() {
@@ -713,18 +804,19 @@ function wirePreQ2Buttons() {
 }
 
 /* -------------------------
-   Period wiring (P1 / P2)
+   Period wiring (P1 / P2 / P3)
 -------------------------- */
 function wirePeriodButtons(key) {
   const p = state.periods[key];
   const picks = p.picks;
   const r = p.results;
+  const isP2 = key === "p2";
 
-  const snapKey = key === "p1" ? "p1" : "p2";
-  const snapFn = key === "p1" ? snapP1 : snapP2;
+  // undo snapshot key
+  const undoKey = key;
 
   // Period 2 DOG spending (scratch one House question)
-  if (key === "p2") {
+  if (isP2) {
     const anyPlayerLocked =
       picks.q1_goal.lockedPlayer || picks.q2_penalty.lockedPlayer || picks.q3_both5sog.lockedPlayer;
 
@@ -737,13 +829,12 @@ function wirePeriodButtons(key) {
       const b3 = document.getElementById("scratch_q3");
 
       const doScratch = (qid) => {
-        pushUndo(snapKey, snapFn());
-        // spend DOG
+        pushUndo(undoKey, snapPeriod(key));
         state.dogs = Math.max(0, (state.dogs ?? 0) - 1);
         p.dogSpend.used = true;
         p.dogSpend.scratched = qid;
 
-        // scratch = House can’t answer / can’t score
+        // scratch = House cannot answer
         const target = p.picks[qid];
         target.lockedHouse = true;
         target.house = null;
@@ -757,29 +848,29 @@ function wirePeriodButtons(key) {
     }
   }
 
-  const isScratched = (qid) => (key === "p2" && p.dogSpend.used && p.dogSpend.scratched === qid);
+  const isScratched = (qid) => (isP2 && p.dogSpend.used && p.dogSpend.scratched === qid);
 
-  // Wire yes/no for sealed picks
-  const wirePickYesNo = (pickState, prefix, qid, forHouse) => {
+  // Wire yes/no picks
+  const wirePickYesNo = (pickState, prefix, qid) => {
     const pYes = document.getElementById(`${prefix}_player_Yes`);
     const pNo = document.getElementById(`${prefix}_player_No`);
-    if (pYes) pYes.onclick = () => { pushUndo(snapKey, snapFn()); pickState.player = "Yes"; pickState.lockedPlayer = true; render(); };
-    if (pNo) pNo.onclick = () => { pushUndo(snapKey, snapFn()); pickState.player = "No"; pickState.lockedPlayer = true; render(); };
+    if (pYes) pYes.onclick = () => { pushUndo(undoKey, snapPeriod(key)); pickState.player = "Yes"; pickState.lockedPlayer = true; render(); };
+    if (pNo) pNo.onclick = () => { pushUndo(undoKey, snapPeriod(key)); pickState.player = "No"; pickState.lockedPlayer = true; render(); };
 
-    // House buttons should be ignored/disabled if scratched
-    if (forHouse && isScratched(qid)) return;
+    // House pick disabled if scratched (P2)
+    if (isScratched(qid)) return;
 
     const hYes = document.getElementById(`${prefix}_house_Yes`);
     const hNo = document.getElementById(`${prefix}_house_No`);
-    if (hYes) hYes.onclick = () => { pushUndo(snapKey, snapFn()); pickState.house = "Yes"; pickState.lockedHouse = true; render(); };
-    if (hNo) hNo.onclick = () => { pushUndo(snapKey, snapFn()); pickState.house = "No"; pickState.lockedHouse = true; render(); };
+    if (hYes) hYes.onclick = () => { pushUndo(undoKey, snapPeriod(key)); pickState.house = "Yes"; pickState.lockedHouse = true; render(); };
+    if (hNo) hNo.onclick = () => { pushUndo(undoKey, snapPeriod(key)); pickState.house = "No"; pickState.lockedHouse = true; render(); };
   };
 
-  wirePickYesNo(picks.q1_goal, `${key}q1`, "q1_goal", true);
-  wirePickYesNo(picks.q2_penalty, `${key}q2`, "q2_penalty", true);
-  wirePickYesNo(picks.q3_both5sog, `${key}q3`, "q3_both5sog", true);
+  wirePickYesNo(picks.q1_goal, `${key}q1`, "q1_goal");
+  wirePickYesNo(picks.q2_penalty, `${key}q2`, "q2_penalty");
+  wirePickYesNo(picks.q3_both5sog, `${key}q3`, "q3_both5sog");
 
-  // Results checkboxes (mutually exclusive per row) + persist without rerender
+  // Results checkboxes + persist
   const goalY = document.getElementById(`${key}_r_goal_y`);
   const goalN = document.getElementById(`${key}_r_goal_n`);
   const penY = document.getElementById(`${key}_r_pen_y`);
@@ -787,13 +878,13 @@ function wirePeriodButtons(key) {
 
   if (goalY && goalN) {
     goalY.onchange = () => {
-      pushUndo(snapKey, snapFn());
+      pushUndo(undoKey, snapPeriod(key));
       if (goalY.checked) { goalN.checked = false; r.goal = "Yes"; }
       else if (!goalN.checked) { r.goal = null; }
       saveState();
     };
     goalN.onchange = () => {
-      pushUndo(snapKey, snapFn());
+      pushUndo(undoKey, snapPeriod(key));
       if (goalN.checked) { goalY.checked = false; r.goal = "No"; }
       else if (!goalY.checked) { r.goal = null; }
       saveState();
@@ -802,26 +893,26 @@ function wirePeriodButtons(key) {
 
   if (penY && penN) {
     penY.onchange = () => {
-      pushUndo(snapKey, snapFn());
+      pushUndo(undoKey, snapPeriod(key));
       if (penY.checked) { penN.checked = false; r.penalty = "Yes"; }
       else if (!penN.checked) { r.penalty = null; }
       saveState();
     };
     penN.onchange = () => {
-      pushUndo(snapKey, snapFn());
+      pushUndo(undoKey, snapPeriod(key));
       if (penN.checked) { penY.checked = false; r.penalty = "No"; }
       else if (!penY.checked) { r.penalty = null; }
       saveState();
     };
   }
 
-  // Persist SOG while typing (without rerender)
+  // Persist SOG typing
   const sogAway = document.getElementById(`${key}_r_sog_away`);
   const sogHome = document.getElementById(`${key}_r_sog_home`);
 
   if (sogAway) {
     sogAway.oninput = () => {
-      pushUndo(snapKey, snapFn());
+      pushUndo(undoKey, snapPeriod(key));
       const v = parseInt(sogAway.value, 10);
       r.endSogAway = Number.isNaN(v) ? null : v;
       saveState();
@@ -829,18 +920,18 @@ function wirePeriodButtons(key) {
   }
   if (sogHome) {
     sogHome.oninput = () => {
-      pushUndo(snapKey, snapFn());
+      pushUndo(undoKey, snapPeriod(key));
       const v = parseInt(sogHome.value, 10);
       r.endSogHome = Number.isNaN(v) ? null : v;
       saveState();
     };
   }
 
-  // Lock results button
+  // Lock results
   const lockBtn = document.getElementById(`${key}_lockResults`);
   if (lockBtn) {
     lockBtn.onclick = () => {
-      pushUndo(snapKey, snapFn());
+      pushUndo(undoKey, snapPeriod(key));
 
       const endAway = r.endSogAway;
       const endHome = r.endSogHome;
@@ -867,22 +958,34 @@ function wirePeriodButtons(key) {
 
       const q3Truth = (periodAway >= 5 && periodHome >= 5) ? "Yes" : "No";
 
-      // Correctness
-      const playerCorrect =
-        (picks.q1_goal.player === r.goal ? 1 : 0) +
-        (picks.q2_penalty.player === r.penalty ? 1 : 0) +
-        (picks.q3_both5sog.player === q3Truth ? 1 : 0);
+      // correctness booleans (saved for Good Boy check)
+      const correct = {
+        q1: {
+          player: (picks.q1_goal.player === r.goal),
+          house: (isScratched("q1_goal") ? false : picks.q1_goal.house === r.goal)
+        },
+        q2: {
+          player: (picks.q2_penalty.player === r.penalty),
+          house: (isScratched("q2_penalty") ? false : picks.q2_penalty.house === r.penalty)
+        },
+        q3: {
+          truth: q3Truth,
+          player: (picks.q3_both5sog.player === q3Truth),
+          house: (isScratched("q3_both5sog") ? false : picks.q3_both5sog.house === q3Truth)
+        }
+      };
 
-      // House correctness: scratched question always counts as incorrect for House (Option #1)
-      const houseCorrect =
-        ((isScratched("q1_goal") ? false : picks.q1_goal.house === r.goal) ? 1 : 0) +
-        ((isScratched("q2_penalty") ? false : picks.q2_penalty.house === r.penalty) ? 1 : 0) +
-        ((isScratched("q3_both5sog") ? false : picks.q3_both5sog.house === q3Truth) ? 1 : 0);
+      const playerCorrect = (correct.q1.player ? 1 : 0) + (correct.q2.player ? 1 : 0) + (correct.q3.player ? 1 : 0);
+      const houseCorrect = (correct.q1.house ? 1 : 0) + (correct.q2.house ? 1 : 0) + (correct.q3.house ? 1 : 0);
 
-      // Winner: best 2 of 3, tie -> none
+      // Winner: best 2 of 3 (tie -> none)
       let periodWinner = "none";
       if (playerCorrect >= 2 && houseCorrect < 2) periodWinner = "player";
       else if (houseCorrect >= 2 && playerCorrect < 2) periodWinner = "house";
+
+      // Award POINTS NOW (period points)
+      state.score.player += playerCorrect;
+      state.score.house += houseCorrect;
 
       // DOG effects
       if (periodWinner === "player") state.dogs = (state.dogs ?? 0) + 1;
@@ -894,18 +997,101 @@ function wirePeriodButtons(key) {
         endSog: { away: endAway, home: endHome },
         periodSog: { away: periodAway, home: periodHome },
         q3Truth,
+        correct,
         playerCorrect,
         houseCorrect,
         periodWinner
       };
 
-      // Update start SOG for next period = this end SOG
+      // SOG carry-forward
       state.sog.end.away = endAway;
       state.sog.end.home = endHome;
       state.sog.start.away = endAway;
       state.sog.start.home = endHome;
 
+      // Period 3: if player wins, convert the DOG into Good Boy
+      if (key === "p3") {
+        if (periodWinner === "player") {
+          state.goodBoy.earned = true;
+          state.goodBoy.resolved = false;
+          state.goodBoy.roll = null;
+          state.goodBoy.target = null;
+          state.goodBoy.success = null;
+        } else {
+          // no Good Boy if not won
+          state.goodBoy.earned = false;
+          state.goodBoy.resolved = false;
+          state.goodBoy.roll = null;
+          state.goodBoy.target = null;
+          state.goodBoy.success = null;
+        }
+      }
+
       render();
     };
   }
+}
+
+function wireGoodBoyButtons() {
+  const gb = state.goodBoy;
+  if (!gb.earned) return;
+
+  const doResolve = (roll) => {
+    pushUndo("goodboy", snapGoodBoy());
+
+    gb.roll = roll;
+
+    // Fixed mapping 1..6
+    const map = {
+      1: { period: "p1", q: "q1", label: "P1 Q1 (Goal?)" },
+      2: { period: "p1", q: "q2", label: "P1 Q2 (Penalty?)" },
+      3: { period: "p1", q: "q3", label: "P1 Q3 (Both 5+ SOG?)" },
+      4: { period: "p2", q: "q1", label: "P2 Q1 (Goal?)" },
+      5: { period: "p2", q: "q2", label: "P2 Q2 (Penalty?)" },
+      6: { period: "p2", q: "q3", label: "P2 Q3 (Both 5+ SOG?)" }
+    };
+
+    const target = map[roll];
+    gb.target = target.label;
+
+    const periodObj = state.periods[target.period];
+    const wasCorrect = !!periodObj?.computed?.correct?.[target.q]?.player;
+
+    gb.success = wasCorrect;
+    if (wasCorrect) {
+      state.score.player += 1; // bonus point
+    }
+
+    gb.resolved = true;
+    render();
+  };
+
+  const rollBtn = document.getElementById("gbRoll");
+  if (rollBtn) {
+    rollBtn.onclick = () => {
+      if (gb.resolved) return;
+      const roll = Math.floor(Math.random() * 6) + 1;
+      doResolve(roll);
+    };
+  }
+
+  const manual = document.getElementById("gbManual");
+  const setBtn = document.getElementById("gbSetManual");
+  if (setBtn) {
+    setBtn.onclick = () => {
+      if (gb.resolved) return;
+      const v = parseInt(manual?.value ?? "", 10);
+      if (!v || v < 1 || v > 6) {
+        alert("Enter a number 1–6.");
+        return;
+      }
+      doResolve(v);
+    };
+  }
+
+  const toPostgame = document.getElementById("toPostgame");
+  if (toPostgame) toPostgame.onclick = () => { state.screen = "postgame_stub"; render(); };
+
+  const backToP3 = document.getElementById("backToP3");
+  if (backToP3) backToP3.onclick = () => { state.screen = "p3"; render(); };
 }
