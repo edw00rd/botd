@@ -1,4 +1,4 @@
-// BOTD — game.js (single-copy-paste version)
+// BOTD — game.js (drop-in)
 // Includes:
 // - Away @ Home convention
 // - "House" terminology (+ back-compat from scorekeeper)
@@ -6,9 +6,13 @@
 // - Pre-Game Q1 + Q2
 // - Period 1: 3 sealed questions + House results panel
 //   * Results UI uses Y/N checkbox-style selectors (mutually exclusive) + SOG totals
-//   * Results persist across re-renders/navigation (critical for Good Boy later)
+//   * Results persist across re-renders/navigation (for Good Boy later)
 // - SOG logic: start at 0/0, House enters end totals, period SOG = end - start
 // - LIVE scaffolding + House override to disable LIVE anytime (API later)
+// - Back button behavior:
+//   * BACK first undoes last action on that screen (if available)
+//   * Once "Start Period 1" is pressed, pregame undo is disabled (locked-in)
+//   * Once "Continue to Period 2" is pressed, Period 1 undo is disabled (locked-in)
 
 const state = JSON.parse(localStorage.getItem("botd_state"));
 const gameEl = document.getElementById("game");
@@ -29,8 +33,23 @@ if (!state) {
   // Routing
   state.screen = state.screen ?? "pre_q1"; // pre_q1 -> pre_q2 -> p1 -> p2_stub
 
+  // Commit flags (lock-in points)
+  state.committed = state.committed ?? {
+    pregame: false, // becomes true when Period 1 starts
+    p1: false       // becomes true when Period 2 starts (stub for now)
+  };
+
+  // Undo stacks (per phase). We only use undo in pre_q2 and p1 for now.
+  state.undo = state.undo ?? {
+    pre_q2: [],
+    p1: []
+  };
+  state.undoSig = state.undoSig ?? {
+    pre_q2: null,
+    p1: null
+  };
+
   // Shots-on-goal tracking (totals)
-  // Start game assumed 0/0; end-of-period totals entered by House when LIVE is off.
   state.sog = state.sog ?? {
     start: { away: 0, home: 0 },
     end: { away: 0, home: 0 }
@@ -38,8 +57,8 @@ if (!state) {
 
   // Pre-game answers
   state.pre = state.pre ?? {};
-  state.pre.q1 = state.pre.q1 ?? mkPickState();
-  state.pre.q2 = state.pre.q2 ?? mkPickState();
+  state.pre.q1 = state.pre.q1 ?? mkPickState(); // Away/Home
+  state.pre.q2 = state.pre.q2 ?? mkPickState(); // Yes/No
 
   // Periods
   state.periods = state.periods ?? {};
@@ -50,7 +69,7 @@ if (!state) {
 
 function mkPickState() {
   return {
-    player: null, // e.g., "Away"/"Home" or "Yes"/"No"
+    player: null,
     house: null,
     lockedPlayer: false,
     lockedHouse: false
@@ -75,8 +94,56 @@ function mkPeriodState() {
   };
 }
 
+function clone(obj) {
+  return JSON.parse(JSON.stringify(obj));
+}
+
 function saveState() {
   localStorage.setItem("botd_state", JSON.stringify(state));
+}
+
+// Push undo snapshot only if not committed and snapshot differs from last pushed
+function pushUndo(key, snapshotObj) {
+  if (key === "pre_q2" && state.committed.pregame) return;
+  if (key === "p1" && state.committed.p1) return;
+
+  const snap = clone(snapshotObj);
+  const sig = JSON.stringify(snap);
+
+  if (state.undoSig[key] === sig) return; // avoid spam duplicates
+  state.undoSig[key] = sig;
+
+  state.undo[key].push(snap);
+  if (state.undo[key].length > 30) state.undo[key].shift(); // cap stack
+  saveState();
+}
+
+function tryUndo(key, applyFn) {
+  const stack = state.undo?.[key];
+  if (!stack || stack.length === 0) return false;
+
+  const snap = stack.pop();
+  // reset signature so next push isn't blocked incorrectly
+  state.undoSig[key] = stack.length ? JSON.stringify(stack[stack.length - 1]) : null;
+
+  applyFn(snap);
+  saveState();
+  render();
+  return true;
+}
+
+function commitPregame() {
+  state.committed.pregame = true;
+  state.undo.pre_q2 = [];
+  state.undoSig.pre_q2 = null;
+  saveState();
+}
+
+function commitP1() {
+  state.committed.p1 = true;
+  state.undo.p1 = [];
+  state.undoSig.p1 = null;
+  saveState();
 }
 
 function render() {
@@ -238,6 +305,7 @@ function renderPreQ2() {
     requireOtherLock: true
   });
 
+  // BACK here means: undo last change on this screen, else go to Q1 (if not committed)
   const backHTML = `<button id="backToQ1">Back</button>`;
   const continueHTML = (q2.lockedPlayer && q2.lockedHouse) ? `<button id="toP1">Start Period 1</button>` : "";
 
@@ -377,6 +445,7 @@ function renderPeriod1() {
     ? `<button id="toP2Stub">Continue to Period 2</button>`
     : "";
 
+  // BACK here means: undo last change on this screen, else go back to Q2 if pregame not committed
   return `
     <div style="margin-top:16px; border:1px solid #ccc; padding:12px; max-width:720px;">
       <h3 style="margin-top:0;">Period 1 (3 pts possible)</h3>
@@ -413,7 +482,7 @@ function renderP1ComputedSummary() {
       <div style="margin:6px 0;"><strong>${state.house} correct:</strong> ${c.houseCorrect} / 3</div>
       <div style="margin:6px 0;"><strong>Period Winner:</strong> ${winnerText}</div>
       <div style="margin:6px 0; font-size:0.9rem; opacity:0.75;">
-        Period SOG: Away ${c.periodSog.away}, Home ${c.periodSog.home} (start ${c.startSog.away}/${c.startSog.home} → end ${c.endSog.away}/${c.endSog.home})
+        Period SOG: Away ${c.periodSog.away}, Home ${c.periodSog.home} (start ${c.startSog.away}/${c.startSog.home} → end ${c.endSog.away}/${c.endSogHome ?? c.endSog.home})
       </div>
     </div>
   `;
@@ -436,21 +505,55 @@ function wireHandlers() {
   if (state.screen === "pre_q2") wirePreQ2Buttons();
   if (state.screen === "p1") wireP1Buttons();
 
-  // Nav
+  // Nav: Q1 -> Q2
   const toQ2 = document.getElementById("toQ2");
   if (toQ2) toQ2.onclick = () => { state.screen = "pre_q2"; render(); };
 
+  // Back from Q2: undo first, else go to Q1 (only if pregame not committed)
   const backToQ1 = document.getElementById("backToQ1");
-  if (backToQ1) backToQ1.onclick = () => { state.screen = "pre_q1"; render(); };
+  if (backToQ1) {
+    backToQ1.onclick = () => {
+      const undone = tryUndo("pre_q2", (snap) => { state.pre.q2 = snap; });
+      if (!undone) {
+        state.screen = "pre_q1";
+        render();
+      }
+    };
+  }
 
+  // Start Period 1: commits pregame (disables pregame undo)
   const toP1 = document.getElementById("toP1");
-  if (toP1) toP1.onclick = () => { state.screen = "p1"; render(); };
+  if (toP1) {
+    toP1.onclick = () => {
+      commitPregame();
+      state.screen = "p1";
+      render();
+    };
+  }
 
+  // Back from P1: undo first, else go back to Q2 ONLY if pregame not committed
   const backToQ2 = document.getElementById("backToQ2");
-  if (backToQ2) backToQ2.onclick = () => { state.screen = "pre_q2"; render(); };
+  if (backToQ2) {
+    backToQ2.onclick = () => {
+      const undone = tryUndo("p1", (snap) => { state.periods.p1 = snap; });
+      if (!undone) {
+        if (!state.committed.pregame) {
+          state.screen = "pre_q2";
+        }
+        render();
+      }
+    };
+  }
 
+  // Continue to Period 2 (stub): commits P1 (disables P1 undo)
   const toP2Stub = document.getElementById("toP2Stub");
-  if (toP2Stub) toP2Stub.onclick = () => { state.screen = "p2_stub"; render(); };
+  if (toP2Stub) {
+    toP2Stub.onclick = () => {
+      commitP1();
+      state.screen = "p2_stub";
+      render();
+    };
+  }
 
   const backToP1 = document.getElementById("backToP1");
   if (backToP1) backToP1.onclick = () => { state.screen = "p1"; render(); };
@@ -475,37 +578,36 @@ function wirePreQ2Buttons() {
 
   const pYes = document.getElementById("q2_player_Yes");
   const pNo = document.getElementById("q2_player_No");
-  if (pYes) pYes.onclick = () => { q2.player = "Yes"; q2.lockedPlayer = true; render(); };
-  if (pNo) pNo.onclick = () => { q2.player = "No"; q2.lockedPlayer = true; render(); };
+  if (pYes) pYes.onclick = () => { pushUndo("pre_q2", state.pre.q2); q2.player = "Yes"; q2.lockedPlayer = true; render(); };
+  if (pNo) pNo.onclick = () => { pushUndo("pre_q2", state.pre.q2); q2.player = "No"; q2.lockedPlayer = true; render(); };
 
   const hYes = document.getElementById("q2_house_Yes");
   const hNo = document.getElementById("q2_house_No");
-  if (hYes) hYes.onclick = () => { q2.house = "Yes"; q2.lockedHouse = true; render(); };
-  if (hNo) hNo.onclick = () => { q2.house = "No"; q2.lockedHouse = true; render(); };
+  if (hYes) hYes.onclick = () => { pushUndo("pre_q2", state.pre.q2); q2.house = "Yes"; q2.lockedHouse = true; render(); };
+  if (hNo) hNo.onclick = () => { pushUndo("pre_q2", state.pre.q2); q2.house = "No"; q2.lockedHouse = true; render(); };
 }
 
 function wireP1Buttons() {
   const p1 = state.periods.p1;
   const r = p1.results;
 
-  // Wire yes/no for sealed picks
   const wirePickYesNo = (pickState, prefix) => {
     const pYes = document.getElementById(`${prefix}_player_Yes`);
     const pNo = document.getElementById(`${prefix}_player_No`);
-    if (pYes) pYes.onclick = () => { pickState.player = "Yes"; pickState.lockedPlayer = true; render(); };
-    if (pNo) pNo.onclick = () => { pickState.player = "No"; pickState.lockedPlayer = true; render(); };
+    if (pYes) pYes.onclick = () => { pushUndo("p1", state.periods.p1); pickState.player = "Yes"; pickState.lockedPlayer = true; render(); };
+    if (pNo) pNo.onclick = () => { pushUndo("p1", state.periods.p1); pickState.player = "No"; pickState.lockedPlayer = true; render(); };
 
     const hYes = document.getElementById(`${prefix}_house_Yes`);
     const hNo = document.getElementById(`${prefix}_house_No`);
-    if (hYes) hYes.onclick = () => { pickState.house = "Yes"; pickState.lockedHouse = true; render(); };
-    if (hNo) hNo.onclick = () => { pickState.house = "No"; pickState.lockedHouse = true; render(); };
+    if (hYes) hYes.onclick = () => { pushUndo("p1", state.periods.p1); pickState.house = "Yes"; pickState.lockedHouse = true; render(); };
+    if (hNo) hNo.onclick = () => { pushUndo("p1", state.periods.p1); pickState.house = "No"; pickState.lockedHouse = true; render(); };
   };
 
   wirePickYesNo(p1.picks.q1_goal, "p1q1");
   wirePickYesNo(p1.picks.q2_penalty, "p1q2");
   wirePickYesNo(p1.picks.q3_both5sog, "p1q3");
 
-  // Results checkboxes (mutually exclusive per row) + persist to state without rerender
+  // Results checkboxes (mutually exclusive per row) + persist without rerender
   const goalY = document.getElementById("r_goal_y");
   const goalN = document.getElementById("r_goal_n");
   const penY = document.getElementById("r_pen_y");
@@ -513,11 +615,13 @@ function wireP1Buttons() {
 
   if (goalY && goalN) {
     goalY.onchange = () => {
+      pushUndo("p1", state.periods.p1);
       if (goalY.checked) { goalN.checked = false; r.goal = "Yes"; }
       else if (!goalN.checked) { r.goal = null; }
       saveState();
     };
     goalN.onchange = () => {
+      pushUndo("p1", state.periods.p1);
       if (goalN.checked) { goalY.checked = false; r.goal = "No"; }
       else if (!goalY.checked) { r.goal = null; }
       saveState();
@@ -526,11 +630,13 @@ function wireP1Buttons() {
 
   if (penY && penN) {
     penY.onchange = () => {
+      pushUndo("p1", state.periods.p1);
       if (penY.checked) { penN.checked = false; r.penalty = "Yes"; }
       else if (!penN.checked) { r.penalty = null; }
       saveState();
     };
     penN.onchange = () => {
+      pushUndo("p1", state.periods.p1);
       if (penN.checked) { penY.checked = false; r.penalty = "No"; }
       else if (!penY.checked) { r.penalty = null; }
       saveState();
@@ -543,6 +649,7 @@ function wireP1Buttons() {
 
   if (sogAway) {
     sogAway.oninput = () => {
+      pushUndo("p1", state.periods.p1);
       const v = parseInt(sogAway.value, 10);
       r.endSogAway = Number.isNaN(v) ? null : v;
       saveState();
@@ -550,6 +657,7 @@ function wireP1Buttons() {
   }
   if (sogHome) {
     sogHome.oninput = () => {
+      pushUndo("p1", state.periods.p1);
       const v = parseInt(sogHome.value, 10);
       r.endSogHome = Number.isNaN(v) ? null : v;
       saveState();
@@ -560,6 +668,8 @@ function wireP1Buttons() {
   const lockBtn = document.getElementById("lockP1Results");
   if (lockBtn) {
     lockBtn.onclick = () => {
+      pushUndo("p1", state.periods.p1);
+
       const endAway = r.endSogAway;
       const endHome = r.endSogHome;
 
@@ -572,7 +682,6 @@ function wireP1Buttons() {
         return;
       }
 
-      // Use current start SOG
       const startAway = state.sog.start.away ?? 0;
       const startHome = state.sog.start.home ?? 0;
 
@@ -584,48 +693,26 @@ function wireP1Buttons() {
         return;
       }
 
-      // Compute truth + correctness
       const q3Truth = (periodAway >= 5 && periodHome >= 5) ? "Yes" : "No";
 
-      const correct = {
-        q1: {
-          player: p1.picks.q1_goal.player === r.goal,
-          house: p1.picks.q1_goal.house === r.goal
-        },
-        q2: {
-          player: p1.picks.q2_penalty.player === r.penalty,
-          house: p1.picks.q2_penalty.house === r.penalty
-        },
-        q3: {
-          truth: q3Truth,
-          player: p1.picks.q3_both5sog.player === q3Truth,
-          house: p1.picks.q3_both5sog.house === q3Truth
-        }
-      };
-
       const playerCorrect =
-        (correct.q1.player ? 1 : 0) +
-        (correct.q2.player ? 1 : 0) +
-        (correct.q3.player ? 1 : 0);
+        (p1.picks.q1_goal.player === r.goal ? 1 : 0) +
+        (p1.picks.q2_penalty.player === r.penalty ? 1 : 0) +
+        (p1.picks.q3_both5sog.player === q3Truth ? 1 : 0);
 
       const houseCorrect =
-        (correct.q1.house ? 1 : 0) +
-        (correct.q2.house ? 1 : 0) +
-        (correct.q3.house ? 1 : 0);
+        (p1.picks.q1_goal.house === r.goal ? 1 : 0) +
+        (p1.picks.q2_penalty.house === r.penalty ? 1 : 0) +
+        (p1.picks.q3_both5sog.house === q3Truth ? 1 : 0);
 
-      // Period winner: best 2 of 3 (tie -> nobody)
       let periodWinner = "none";
       if (playerCorrect >= 2 && houseCorrect < 2) periodWinner = "player";
       else if (houseCorrect >= 2 && playerCorrect < 2) periodWinner = "house";
 
       // DOG effects
-      if (periodWinner === "player") {
-        state.dogs = (state.dogs ?? 0) + 1;
-      } else if (periodWinner === "house") {
-        state.dogs = Math.max(0, (state.dogs ?? 0) - 1);
-      }
+      if (periodWinner === "player") state.dogs = (state.dogs ?? 0) + 1;
+      else if (periodWinner === "house") state.dogs = Math.max(0, (state.dogs ?? 0) - 1);
 
-      // Lock + store computed summary
       p1.lockedResults = true;
       p1.computed = {
         startSog: { away: startAway, home: startHome },
