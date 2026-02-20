@@ -80,6 +80,11 @@ if (!state) {
   render();
 }
 
+function renderDogs(count) {
+  if (!count || count <= 0) return "—";
+  return "🐶".repeat(count);
+}
+
 function mkPickState() {
   return {
     player: null,
@@ -209,7 +214,7 @@ function render() {
           <p style="margin:6px 0;"><strong>${state.player1}</strong> vs <strong>${state.house}</strong></p>
           <p style="margin:6px 0;">
             <strong>Score:</strong> ${state.player1} ${state.score.player} — ${state.house} ${state.score.house}
-            &nbsp; | &nbsp; <strong>DOGs:</strong> ${state.dogs}
+            &nbsp; | &nbsp; <strong>DOGs:</strong> ${renderDogs(state.dogs)}
           </p>
           <p style="margin:6px 0;"><strong>ANTE:</strong> ${state.ante || "(none)"} </p>
         </div>
@@ -276,7 +281,7 @@ function sealedYesNoSection({ idPrefix, lockedSelf, lockedOther, requireOtherLoc
     : "";
 
   const scratchedMsg = disabledAll
-    ? `<div style="font-size:0.95rem; opacity:0.8;">Scratched 🐶 (House can’t answer)</div>`
+    ? `<div style="font-size:0.95rem; opacity:0.8;">🦴 FETCHED — House disabled</div>`
     : "";
 
   return `
@@ -614,7 +619,7 @@ function renderGoodBoy() {
 
   const mapping = `
     <div style="margin-top:10px; font-size:0.95rem; opacity:0.85;">
-      <div style="font-weight:700; margin-bottom:6px;">d6 Mapping</div>
+      <div style="font-weight:700; margin-bottom:6px;">🦴 D6 Mapping</div>
       <div>1 = P1 Q1 (Goal?)</div>
       <div>2 = P1 Q2 (Penalty?)</div>
       <div>3 = P1 Q3 (Both 5+ SOG?)</div>
@@ -641,7 +646,7 @@ function renderGoodBoy() {
       </p>
 
       <div style="display:flex; gap:10px; flex-wrap:wrap;">
-        <button id="gbRoll" ${gb.resolved ? "disabled" : ""}>Roll d6</button>
+        <button id="gbRoll" ${gb.resolved ? "disabled" : ""}>FETCH!! (Roll 🎲)</button>
         <label style="display:flex; gap:8px; align-items:center;">
           <span>House manual roll:</span>
           <input id="gbManual" type="number" min="1" max="6" inputmode="numeric" style="width:80px;" ${gb.resolved ? "disabled" : ""}/>
