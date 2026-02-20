@@ -547,23 +547,50 @@ function renderPeriodComputedSummary(key) {
   const c = p.computed;
   if (!c) return "";
 
-  const winnerText = c.periodWinner === "player"
-    ? `${state.player1} wins Period ${p.n} ✅ (DOG +1)`
-    : c.periodWinner === "house"
-      ? `${state.house} wins Period ${p.n} ✅ (House terminates 1 DOG if available)`
-      : `Period ${p.n} is a tie (no DOG changes)`;
+  const dot = (isCorrect) => (isCorrect ? "🟢" : "⚪️");
+  const rowDots = (side) => {
+    // side = "player" | "house"
+    const q1 = !!c.correct?.q1?.[side];
+    const q2 = !!c.correct?.q2?.[side];
+    const q3 = !!c.correct?.q3?.[side];
+    return `${dot(q1)}${dot(q2)}${dot(q3)}`;
+  };
 
-  const scratchedLine = (key === "p2" && p.dogSpend.used && p.dogSpend.scratched)
-    ? `<div style="margin:6px 0; font-size:0.9rem; opacity:0.8;"><strong>Scratched:</strong> ${prettyQ(p.dogSpend.scratched)} (House couldn’t answer)</div>`
-    : "";
+  const winnerText =
+    c.periodWinner === "player"
+      ? `${state.player1} wins Period ${p.n} ✅ (DOG +1)`
+      : c.periodWinner === "house"
+        ? `${state.house} wins Period ${p.n} ✅ (House terminates 1 DOG if available)`
+        : `Period ${p.n} is a tie (no DOG changes)`;
+
+  const scratchedLine =
+    (key === "p2" && p.dogSpend?.used && p.dogSpend?.scratched)
+      ? `<div style="margin:6px 0; font-size:0.9rem; opacity:0.8;">
+           <strong>Scratched:</strong> ${prettyQ(p.dogSpend.scratched)} (House couldn’t answer)
+         </div>`
+      : "";
 
   return `
     <div style="margin-top:10px; padding:10px; border:1px solid #eee;">
-      <div style="font-weight:700; margin-bottom:6px;">Scoring Summary</div>
+      <div style="font-weight:700; margin-bottom:10px;">Scoring Summary</div>
       ${scratchedLine}
-      <div style="margin:6px 0;"><strong>${state.player1} correct:</strong> ${c.playerCorrect} / 3</div>
-      <div style="margin:6px 0;"><strong>${state.house} correct:</strong> ${c.houseCorrect} / 3</div>
+
+      <div style="display:flex; align-items:center; gap:12px; margin:6px 0;">
+        <div style="min-width:140px; font-weight:700;">${state.player1} correct:</div>
+        <div style="min-width:70px;">${c.playerCorrect}/3</div>
+        <div style="font-size:1.15rem; letter-spacing:2px;">${rowDots("player")}</div>
+      </div>
+
+      <div style="display:flex; align-items:center; gap:12px; margin:6px 0;">
+        <div style="min-width:140px; font-weight:700;">${state.house} correct:</div>
+        <div style="min-width:70px;">${c.houseCorrect}/3</div>
+        <div style="font-size:1.15rem; letter-spacing:2px;">${rowDots("house")}</div>
+      </div>
+
+      <hr style="border:none; border-top:1px solid #eee; margin:10px 0;" />
+
       <div style="margin:6px 0;"><strong>Period Winner:</strong> ${winnerText}</div>
+
       <div style="margin:6px 0; font-size:0.9rem; opacity:0.75;">
         Period SOG: Away ${c.periodSog.away}, Home ${c.periodSog.home}
         (start ${c.startSog.away}/${c.startSog.home} → end ${c.endSog.away}/${c.endSog.home})
