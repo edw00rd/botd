@@ -24,7 +24,7 @@ if (!state) {
   state.live = !!state.live;
 
   // Routing
-  state.screen = state.screen ?? "pre_q1"; // pre_q1 -> pre_q2 -> p1 -> p2 -> p3 -> goodboy -> postgame_stub
+  state.screen = state.screen ?? "pre_q1"; // pre_q1 -> pre_q2 -> p1 -> p2 -> p3 -> goodboy? -> regulation -> ot_stub (later)
 
   // Commit flags (lock-in points)
   state.committed = state.committed ?? {
@@ -209,7 +209,9 @@ function render() {
   else if (state.screen === "p2") screenHTML = renderPeriod("p2");
   else if (state.screen === "p3") screenHTML = renderPeriod("p3", { p3Mode: true });
   else if (state.screen === "goodboy") screenHTML = renderGoodBoy();
-  else if (state.screen === "postgame_stub") screenHTML = renderPostgameStub();
+  else if (state.screen === "regulation") screenHTML = renderRegulation();
+  else if (state.screen === "ot_stub") screenHTML = renderOTStub();
+  else if (state.screen === "postgame_stub") screenHTML = renderPostgameStub(); // (can delete later)
   else screenHTML = `<div style="margin-top:16px;border:1px solid #ccc;padding:12px;max-width:860px;">Unknown screen: ${state.screen}</div>`;
 
   gameEl.innerHTML = `${headerHTML}${screenHTML}`;
