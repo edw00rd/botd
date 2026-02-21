@@ -766,10 +766,16 @@ function wireHandlers() {
   if (toP3) {
     toP3.onclick = () => {
       commitStage("p2");
+
+      // ✅ IMPORTANT: entering P3 should allow spending dogs BEFORE first pick
+      const p3 = state.periods.p3;
+      p3.dogSpend = p3.dogSpend ?? { used: false, scratchedList: [], voided: false };
+      p3.dogSpend.voided = false; // allow spending at the start of P3
+
       state.screen = "p3";
       render();
     };
-  }
+ }
 
   const backToP2 = document.getElementById("backToP2");
   if (backToP2) {
