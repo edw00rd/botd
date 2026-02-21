@@ -707,12 +707,12 @@ function wireHandlers() {
   const toGoodBoy = document.getElementById("toGoodBoy");
   if (toGoodBoy) toGoodBoy.onclick = () => {
     commitStage("p3");
-    state.screen = state.goodBoy.earned ? "goodboy" : "postgame_stub";
+    state.screen = state.goodBoy.earned ? "goodboy" : "regulation";
     render();
   };
 
   const toPostgame = document.getElementById("toPostgame");
-  if (toPostgame) toPostgame.onclick = () => { state.screen = "postgame_stub"; render(); };
+  if (toPostgame) toPostgame.onclick = () => { state.screen = "regulation"; render(); };
 
   const backToGoodBoy = document.getElementById("backToGoodBoy");
   if (backToGoodBoy) backToGoodBoy.onclick = () => { state.screen = "goodboy"; render(); };
