@@ -1249,6 +1249,4 @@ function wireGoodBoyButtons() {
   const backToP3 = document.getElementById("backToP3");
   if (backToP3) backToP3.onclick = () => { state.screen = "p3"; render(); };
 
-  const toPostgame = document.getElementById("toPostgame");
-  if (toPostgame) toPostgame.onclick = () => { state.screen = "postgame_stub"; render(); };
 }
