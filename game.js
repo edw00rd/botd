@@ -661,6 +661,116 @@ function renderPostgameStub() {
   `;
 }
 
+function ensureRegulationState() {
+  state.regulation = state.regulation ?? {
+    awayGoals: null,
+    homeGoals: null,
+    ppGoal: null,   // "Yes" | "No"
+    locked: false
+  };
+  state.pregameAwarded = state.pregameAwarded ?? { q1: false, q2: false };
+}
+
+function renderRegulation() {
+  ensureRegulationState();
+  const reg = state.regulation;
+
+  const lockedView = reg.locked ? `
+    <div style="margin:10px 0;"><strong>🔒 Regulation locked</strong></div>
+    <div><strong>Regulation score:</strong> ${state.away} ${reg.awayGoals} — ${state.home} ${reg.homeGoals}</div>
+    <div><strong>PP goal:</strong> ${reg.ppGoal}</div>
+    <div style="margin-top:12px;">
+      ${reg.awayGoals === reg.homeGoals
+        ? `<button id="toOT">BOTD → OT</button>`
+        : `<button id="awardPregame">Award Pre-Game Points</button>`
+      }
+    </div>
+  ` : `
+    <p style="opacity:0.85;">
+      Enter the score at the <strong>end of Period 3</strong> (REGULATION).<br/>
+      If tied, BOTD goes to OT and we’ll score pre-game questions after the real game ends.
+    </p>
+
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin:10px 0;">
+      <div style="flex:1; min-width:220px;">
+        <div style="font-weight:700; margin-bottom:4px;">${state.away} (Away)</div>
+        <input id="regAwayGoals" type="number" min="0" inputmode="numeric"
+          value="${reg.awayGoals ?? ""}"
+          placeholder="Reg goals"
+          style="width:100%; padding:10px; border:1px solid #ccc;" />
+      </div>
+      <div style="flex:1; min-width:220px;">
+        <div style="font-weight:700; margin-bottom:4px;">${state.home} (Home)</div>
+        <input id="regHomeGoals" type="number" min="0" inputmode="numeric"
+          value="${reg.homeGoals ?? ""}"
+          placeholder="Reg goals"
+          style="width:100%; padding:10px; border:1px solid #ccc;" />
+      </div>
+    </div>
+
+    <div style="margin-top:12px; font-weight:700;">Was there a power-play goal in the game?</div>
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin:10px 0;">
+      <button id="regPPYes">Yes</button>
+      <button id="regPPNo">No</button>
+      <div style="opacity:0.8;">Selected: <strong>${reg.ppGoal ?? "—"}</strong></div>
+    </div>
+
+    <button id="lockRegulation">Lock Regulation</button>
+  `;
+
+  return `
+    <div style="margin-top:16px; border:1px solid #ccc; padding:12px; max-width:860px;">
+      <h3 style="margin-top:0;">Regulation Result (House)</h3>
+      ${lockedView}
+
+      <div style="display:flex; gap:10px; margin-top:12px;">
+        <button id="backFromRegulation">Back</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderOTStub() {
+  return `
+    <div style="margin-top:16px; border:1px solid #ccc; padding:12px; max-width:860px;">
+      <h3 style="margin-top:0;">BOTD Overtime (Next)</h3>
+      <p>Regulation ended tied — BOTD goes to OT.</p>
+      <p style="opacity:0.8;">(We’ll build OT/SO next.)</p>
+      <button id="backToRegulation">Back</button>
+    </div>
+  `;
+}
+
+function awardPregamePointsFromRegulation() {
+  ensureRegulationState();
+  const reg = state.regulation;
+  if (!reg.locked) return;
+
+  // If tied, do nothing here (OT later)
+  if (reg.awayGoals === reg.homeGoals) return;
+
+  const winner = reg.awayGoals > reg.homeGoals ? "Away" : "Home";
+
+  // Pre Q1
+  if (!state.pregameAwarded.q1) {
+    const q1 = state.pre?.q1;
+    if (q1?.player === winner) state.score.player += 1;
+    if (q1?.house === winner) state.score.house += 1;
+    state.pregameAwarded.q1 = true;
+  }
+
+  // Pre Q2 (PP goal yes/no)
+  if (!state.pregameAwarded.q2) {
+    const q2 = state.pre?.q2;
+    const truth = reg.ppGoal; // "Yes" | "No"
+    if (q2?.player === truth) state.score.player += 1;
+    if (q2?.house === truth) state.score.house += 1;
+    state.pregameAwarded.q2 = true;
+  }
+
+  saveState();
+}
+
 /* -------------------------
    Wiring / Handlers
 -------------------------- */
@@ -674,7 +784,9 @@ function wireHandlers() {
   if (state.screen === "p2") wirePeriodButtons("p2");
   if (state.screen === "p3") wirePeriodButtons("p3");
   if (state.screen === "goodboy") wireGoodBoyButtons();
-
+  if (state.screen === "regulation") wireRegulationButtons();
+  if (state.screen === "ot_stub") wireOTStubButtons();
+  
   // Nav
   const toQ2 = document.getElementById("toQ2");
   if (toQ2) toQ2.onclick = () => { state.screen = "pre_q2"; render(); };
@@ -758,6 +870,65 @@ function wireHandlers() {
     });
     if (!undone) render();
   };
+}
+
+function wireRegulationButtons() {
+  ensureRegulationState();
+  const reg = state.regulation;
+
+  const back = document.getElementById("backFromRegulation");
+  if (back) {
+    back.onclick = () => {
+      // go back to GoodBoy if it exists, otherwise back to P3
+      state.screen = state.goodBoy?.earned ? "goodboy" : "p3";
+      render();
+    };
+  }
+
+  const yes = document.getElementById("regPPYes");
+  const no = document.getElementById("regPPNo");
+  if (yes) yes.onclick = () => { reg.ppGoal = "Yes"; render(); };
+  if (no) no.onclick = () => { reg.ppGoal = "No"; render(); };
+
+  const lock = document.getElementById("lockRegulation");
+  if (lock) {
+    lock.onclick = () => {
+      const a = parseInt(document.getElementById("regAwayGoals")?.value ?? "", 10);
+      const h = parseInt(document.getElementById("regHomeGoals")?.value ?? "", 10);
+
+      if (!Number.isFinite(a) || a < 0 || !Number.isFinite(h) || h < 0) {
+        alert("Enter valid regulation goals for both teams.");
+        return;
+      }
+      if (reg.ppGoal !== "Yes" && reg.ppGoal !== "No") {
+        alert("Select Yes/No for PP goal.");
+        return;
+      }
+
+      reg.awayGoals = a;
+      reg.homeGoals = h;
+      reg.locked = true;
+      render();
+    };
+  }
+
+  const toOT = document.getElementById("toOT");
+  if (toOT) toOT.onclick = () => { state.screen = "ot_stub"; render(); };
+
+  const award = document.getElementById("awardPregame");
+  if (award) {
+    award.onclick = () => {
+      awardPregamePointsFromRegulation();
+      // for now just show postgame stub
+      state.screen = "postgame_stub";
+      render();
+    };
+  }
+}
+
+function wireOTStubButtons() {
+  const back = document.getElementById("backToRegulation");
+  if (back) back.onclick = () => { state.screen = "regulation"; render(); };
 }
 
 function wirePreQ1Buttons() {
