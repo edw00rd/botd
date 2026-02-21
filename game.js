@@ -1233,6 +1233,10 @@ function wireGoodBoyButtons() {
   const rollBtn = document.getElementById("gbRoll");
   if (rollBtn) rollBtn.onclick = () => {
     if (gb.resolved) return;
+  
+    const ok = confirm("Roll 🎲 for Good Boy?");
+    if (!ok) return;
+
     const roll = Math.floor(Math.random() * 6) + 1;
     doResolve(roll);
   };
