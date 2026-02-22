@@ -270,6 +270,88 @@ function sealedYesNoSection({ idPrefix, lockedSelf, lockedOther, requireOtherLoc
   `;
 }
 
+function countScratches(periodKey) {
+  const p = state.periods?.[periodKey];
+  const list = p?.dogSpend?.scratchedList ?? [];
+  return list.length;
+}
+
+function renderDogsDeltaLine(periodKey) {
+  const p = state.periods?.[periodKey];
+  if (!p?.computed) return "";
+
+  const n = p.n;
+  const scratches = countScratches(periodKey);
+
+  // Was a DOG spent? (scratches are the spending mechanism)
+  const spentTxt = scratches > 0
+    ? `Spent: <strong>${"🐶".repeat(scratches)}</strong> (scratches: ${scratches})`
+    : `Spent: <strong>—</strong>`;
+
+  if (n === 1) {
+    // P1: no scratches allowed, but dogs can be earned/lost
+    const w = p.computed.periodWinner;
+    const delta = (w === "player") ? "+1 🐶" : (w === "house") ? "−1 🐶" : "±0 🐶";
+    return `<div style="margin-top:8px; opacity:0.9;"><strong>DOGs:</strong> ${delta} &nbsp; | &nbsp; ${spentTxt}</div>`;
+  }
+
+  if (n === 2) {
+    // P2: scratches allowed (max 1), dogs can be earned/lost
+    const w = p.computed.periodWinner;
+    const delta = (w === "player") ? "+1 🐶" : (w === "house") ? "−1 🐶" : "±0 🐶";
+    return `<div style="margin-top:8px; opacity:0.9;"><strong>DOGs:</strong> ${delta} &nbsp; | &nbsp; ${spentTxt}</div>`;
+  }
+
+  // P3: dogs are voided (go to 0 at first lock and also forced to 0 at end)
+  const voided = !!p.dogSpend?.voided;
+  const voidTxt = voided
+    ? "Leftover DOGs: <strong>VOIDED</strong> (first pick locked)"
+    : "Leftover DOGs: <strong>—</strong>";
+
+  const gb = (p.computed.periodWinner === "player")
+    ? "Good Boy: <strong>EARNED ✅</strong>"
+    : "Good Boy: <strong>—</strong>";
+
+  return `
+    <div style="margin-top:8px; opacity:0.9;">
+      <strong>DOGs:</strong> ${voidTxt} &nbsp; | &nbsp; ${spentTxt} &nbsp; | &nbsp; ${gb}
+    </div>
+  `;
+}
+
+function renderDogsLinePostgame(periodKey) {
+  const p = state.periods?.[periodKey];
+  if (!p?.computed) return "";
+
+  const scratches = countScratches(periodKey);
+  const spentTxt = scratches > 0 ? `${"🐶".repeat(scratches)} (scratches: ${scratches})` : "—";
+
+  // Period 1/2: earn/lose based on periodWinner
+  if (p.n === 1 || p.n === 2) {
+    const w = p.computed.periodWinner;
+    const delta = (w === "player") ? "+1 🐶" : (w === "house") ? "−1 🐶" : "±0 🐶";
+
+    return `
+      <div style="margin-top:8px; opacity:0.9;">
+        <strong>DOGs:</strong> ${delta} &nbsp; | &nbsp; Spent: <strong>${spentTxt}</strong>
+      </div>
+    `;
+  }
+
+  // Period 3: dogs void + Good Boy note
+  const voided = !!p.dogSpend?.voided;
+  const voidTxt = voided ? "VOIDED (first pick locked)" : "—";
+  const gbTxt = (p.computed.periodWinner === "player") ? "EARNED ✅" : "—";
+
+  return `
+    <div style="margin-top:8px; opacity:0.9;">
+      <strong>DOGs:</strong> Leftover: <strong>${voidTxt}</strong>
+      &nbsp; | &nbsp; Spent: <strong>${spentTxt}</strong>
+      &nbsp; | &nbsp; Good Boy: <strong>${gbTxt}</strong>
+    </div>
+  `;
+}
+
 /* -------------------------
    Pre-Game Q1 / Q2
 -------------------------- */
@@ -585,6 +667,7 @@ function renderPeriodComputedSummary(key) {
       <hr style="border:none; border-top:1px solid #eee; margin:10px 0;" />
 
       <div style="margin:6px 0;"><strong>Period Winner:</strong> ${winnerText}</div>
+      ${renderDogsDeltaLine(key)}
     </div>
   `;
 }
@@ -1041,6 +1124,9 @@ function renderPeriodSection(periodKey, title) {
       <div style="margin-top:10px;">
         <strong>Period ${p.n} winner:</strong> ${winnerText}
       </div>
+      
+        ${renderDogsLinePostgame(periodKey)}
+        
     </div>
   `;
 }
@@ -1275,6 +1361,13 @@ function wireHandlers() {
   if (state.screen === "regulation") wireRegulationButtons();
   if (state.screen === "ot") wireOTButtons();
   if (state.screen === "so") wireSOButtons();
+  if (state.screen === "postgame") {
+  const restart = document.getElementById("restartGame");
+  if (restart) restart.onclick = () => {
+      localStorage.removeItem("botd_state");
+      window.location.href = "index.html"; // or wherever your setup screen is
+    };
+  }
   
   // Nav
   const toQ2 = document.getElementById("toQ2");
