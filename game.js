@@ -210,8 +210,10 @@ function render() {
   else if (state.screen === "p3") screenHTML = renderPeriod("p3", { p3Mode: true });
   else if (state.screen === "goodboy") screenHTML = renderGoodBoy();
   else if (state.screen === "regulation") screenHTML = renderRegulation();
-  else if (state.screen === "ot_stub") screenHTML = renderOTStub();
+  else if (state.screen === "ot") screenHTML = renderOT();
+  else if (state.screen === "so") screenHTML = renderSO();
   else if (state.screen === "postgame_stub") screenHTML = renderPostgameStub(); // (can delete later)
+  else if (state.screen === "postgame") screenHTML = renderPostgameSummary();
   else screenHTML = `<div style="margin-top:16px;border:1px solid #ccc;padding:12px;max-width:860px;">Unknown screen: ${state.screen}</div>`;
 
   gameEl.innerHTML = `${headerHTML}${screenHTML}`;
@@ -668,7 +670,31 @@ function ensureRegulationState() {
     ppGoal: null,   // "Yes" | "No"
     locked: false
   };
+
+  // Final outcome (needed if regulation is tied)
+  state.final = state.final ?? {
+    winner: null,   // "Away" | "Home"
+    endedIn: null,  // "REG" | "OT" | "SO"
+    soLongerThan3: null // "Yes" | "No" (only if endedIn === "SO")
+  };
+
+  // OT mini-round
+  state.ot = state.ot ?? {
+    picks: { player: null, house: null, lockedPlayer: false, lockedHouse: false },
+    truth: null,      // "Yes" | "No"
+    lockedTruth: false
+  };
+
+  // SO mini-round
+  state.so = state.so ?? {
+    picks: { player: null, house: null, lockedPlayer: false, lockedHouse: false },
+    truth: null,      // "Yes" | "No"
+    lockedTruth: false
+  };
+
+  // “award once” latches
   state.pregameAwarded = state.pregameAwarded ?? { q1: false, q2: false };
+  state.otsoAwarded = state.otsoAwarded ?? { ot: false, so: false, final: false };
 }
 
 function renderRegulation() {
@@ -730,13 +756,432 @@ function renderRegulation() {
   `;
 }
 
-function renderOTStub() {
+function renderOT() {
+  ensureRegulationState();
+  const ot = state.ot;
+
+  const lockedP = ot.picks.lockedPlayer;
+  const lockedH = ot.picks.lockedHouse;
+
+  const playerSection = lockedP
+    ? `<div style="margin:8px 0;"><strong>🔒 Locked</strong></div>`
+    : `<div style="display:flex; gap:10px; flex-wrap:wrap; margin:10px 0;">
+         <button id="ot_playerYes">Yes</button>
+         <button id="ot_playerNo">No</button>
+       </div>`;
+
+  const houseSection = lockedH
+    ? `<div style="margin:8px 0;"><strong>🔒 Locked</strong></div>`
+    : `<div style="display:flex; gap:10px; flex-wrap:wrap; margin:10px 0;">
+         <button id="ot_houseYes" ${!lockedP ? "disabled" : ""}>Yes</button>
+         <button id="ot_houseNo" ${!lockedP ? "disabled" : ""}>No</button>
+       </div>
+       ${!lockedP ? `<div style="font-size:0.95rem; opacity:0.8;">Player locks first.</div>` : ""}`;
+
+  const picksReady = lockedP && lockedH;
+
+  const truthPanel = picksReady ? `
+    <div style="margin-top:12px; border:1px solid #ddd; padding:10px; max-width:860px;">
+      <div style="font-weight:700; margin-bottom:6px;">OT Outcome (House)</div>
+
+      ${
+        ot.lockedTruth
+          ? `<div style="margin:8px 0;"><strong>🔒 OT outcome locked:</strong> ${ot.truth}</div>`
+          : `<div style="display:flex; gap:10px; flex-wrap:wrap; margin:10px 0;">
+               <button id="ot_truthYes">Yes (ended in OT)</button>
+               <button id="ot_truthNo">No (went to SO)</button>
+             </div>
+             <button id="ot_lockTruth">Lock OT Outcome</button>`
+      }
+
+      ${
+        ot.lockedTruth && ot.truth === "Yes"
+          ? `<div style="margin-top:12px;">
+               <div style="font-weight:700; margin-bottom:6px;">Final Winner (House)</div>
+               <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                 <button id="finalWinnerAway">${state.away}</button>
+                 <button id="finalWinnerHome">${state.home}</button>
+               </div>
+               <div style="margin-top:8px; opacity:0.85;">Selected: <strong>${state.final.winner ?? "—"}</strong></div>
+               <button id="finalizeFromOT" ${state.final.winner ? "" : "disabled"} style="margin-top:10px;">Finalize Game</button>
+             </div>`
+          : ``
+      }
+
+      ${
+        ot.lockedTruth && ot.truth === "No"
+          ? `<div style="margin-top:12px;"><button id="toSO">Continue to Shootout</button></div>`
+          : ``
+      }
+    </div>
+  ` : `<div style="margin-top:12px; font-size:0.95rem; opacity:0.75;">Lock both picks to enter OT outcome.</div>`;
+
   return `
     <div style="margin-top:16px; border:1px solid #ccc; padding:12px; max-width:860px;">
-      <h3 style="margin-top:0;">BOTD Overtime (Next)</h3>
-      <p>Regulation ended tied — BOTD goes to OT.</p>
-      <p style="opacity:0.8;">(We’ll build OT/SO next.)</p>
-      <button id="backToRegulation">Back</button>
+      <h3 style="margin-top:0;">BOTD Overtime (1 pt)</h3>
+      <p><strong>Question:</strong> Will the game end in OT?</p>
+
+      <div style="display:flex; gap:12px; align-items:flex-start;">
+        <div style="flex:1; border-top:1px solid #eee; padding-top:10px;">
+          <div style="font-weight:700; margin-bottom:6px;">${state.player1}</div>
+          ${playerSection}
+        </div>
+        <div style="width:1px; background:#eee; align-self:stretch;"></div>
+        <div style="flex:1; border-top:1px solid #eee; padding-top:10px;">
+          <div style="font-weight:700; margin-bottom:6px;">${state.house}</div>
+          ${houseSection}
+        </div>
+      </div>
+
+      ${truthPanel}
+
+      <div style="display:flex; gap:10px; margin-top:12px;">
+        <button id="backToRegulation">Back</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderSO() {
+  ensureRegulationState();
+  const so = state.so;
+
+  const lockedP = so.picks.lockedPlayer;
+  const lockedH = so.picks.lockedHouse;
+
+  const playerSection = lockedP
+    ? `<div style="margin:8px 0;"><strong>🔒 Locked</strong></div>`
+    : `<div style="display:flex; gap:10px; flex-wrap:wrap; margin:10px 0;">
+         <button id="so_playerYes">Yes</button>
+         <button id="so_playerNo">No</button>
+       </div>`;
+
+  const houseSection = lockedH
+    ? `<div style="margin:8px 0;"><strong>🔒 Locked</strong></div>`
+    : `<div style="display:flex; gap:10px; flex-wrap:wrap; margin:10px 0;">
+         <button id="so_houseYes" ${!lockedP ? "disabled" : ""}>Yes</button>
+         <button id="so_houseNo" ${!lockedP ? "disabled" : ""}>No</button>
+       </div>
+       ${!lockedP ? `<div style="font-size:0.95rem; opacity:0.8;">Player locks first.</div>` : ""}`;
+
+  const picksReady = lockedP && lockedH;
+
+  const truthPanel = picksReady ? `
+    <div style="margin-top:12px; border:1px solid #ddd; padding:10px; max-width:860px;">
+      <div style="font-weight:700; margin-bottom:6px;">Shootout Outcome (House)</div>
+
+      ${
+        so.lockedTruth
+          ? `<div style="margin:8px 0;"><strong>🔒 Shootout outcome locked:</strong> ${so.truth}</div>`
+          : `<div style="display:flex; gap:10px; flex-wrap:wrap; margin:10px 0;">
+               <button id="so_truthYes">Yes (longer than 3 rounds)</button>
+               <button id="so_truthNo">No (3 rounds or fewer)</button>
+             </div>
+             <button id="so_lockTruth">Lock Shootout Outcome</button>`
+      }
+
+      ${
+        so.lockedTruth
+          ? `<div style="margin-top:12px;">
+               <div style="font-weight:700; margin-bottom:6px;">Final Winner (House)</div>
+               <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                 <button id="finalWinnerAwaySO">${state.away}</button>
+                 <button id="finalWinnerHomeSO">${state.home}</button>
+               </div>
+               <div style="margin-top:8px; opacity:0.85;">Selected: <strong>${state.final.winner ?? "—"}</strong></div>
+               <button id="finalizeFromSO" ${state.final.winner ? "" : "disabled"} style="margin-top:10px;">Finalize Game</button>
+             </div>`
+          : ``
+      }
+    </div>
+  ` : `<div style="margin-top:12px; font-size:0.95rem; opacity:0.75;">Lock both picks to enter shootout outcome.</div>`;
+
+  return `
+    <div style="margin-top:16px; border:1px solid #ccc; padding:12px; max-width:860px;">
+      <h3 style="margin-top:0;">BOTD Shootout (1 pt)</h3>
+      <p><strong>Question:</strong> Will the shootout last longer than 3 rounds?</p>
+
+      <div style="display:flex; gap:12px; align-items:flex-start;">
+        <div style="flex:1; border-top:1px solid #eee; padding-top:10px;">
+          <div style="font-weight:700; margin-bottom:6px;">${state.player1}</div>
+          ${playerSection}
+        </div>
+        <div style="width:1px; background:#eee; align-self:stretch;"></div>
+        <div style="flex:1; border-top:1px solid #eee; padding-top:10px;">
+          <div style="font-weight:700; margin-bottom:6px;">${state.house}</div>
+          ${houseSection}
+        </div>
+      </div>
+
+      ${truthPanel}
+
+      <div style="display:flex; gap:10px; margin-top:12px;">
+        <button id="backToOT">Back</button>
+      </div>
+    </div>
+  `;
+}
+
+function yn(v) {
+  if (v === "Yes" || v === "No") return v;
+  return v ?? "—";
+}
+function pickTextPreQ1(v) {
+  if (v === "Away") return state.away;
+  if (v === "Home") return state.home;
+  return v ?? "—";
+}
+function mark(correct) {
+  return correct ? "✅" : "❌";
+}
+function safeBool(x) { return !!x; }
+
+function renderTwoColRow({ leftLabel, leftVal, leftMark, rightVal, rightMark }) {
+  return `
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:14px; margin:6px 0;">
+      <div style="border:1px solid #eee; padding:8px;">
+        <div style="font-weight:700; opacity:0.9;">${leftLabel}</div>
+        <div style="margin-top:6px; font-size:1.05rem;"><strong>${leftVal}</strong> &nbsp; ${leftMark}</div>
+      </div>
+      <div style="border:1px solid #eee; padding:8px;">
+        <div style="font-weight:700; opacity:0.9;">${state.house}</div>
+        <div style="margin-top:6px; font-size:1.05rem;"><strong>${rightVal}</strong> &nbsp; ${rightMark}</div>
+      </div>
+    </div>
+  `;
+}
+
+function periodQCorrect(periodKey, qShort) {
+  const p = state.periods?.[periodKey];
+  const c = p?.computed?.correct;
+  if (!c) return { player: false, house: false, truth: null };
+
+  if (qShort === "q1") return { player: !!c.q1?.player, house: !!c.q1?.house, truth: p.results.goal };
+  if (qShort === "q2") return { player: !!c.q2?.player, house: !!c.q2?.house, truth: p.results.penalty };
+  if (qShort === "q3") return { player: !!c.q3?.player, house: !!c.q3?.house, truth: c.q3?.truth };
+  return { player: false, house: false, truth: null };
+}
+
+function isScratched(periodKey, qid) {
+  const p = state.periods?.[periodKey];
+  const list = p?.dogSpend?.scratchedList ?? [];
+  return list.includes(qid);
+}
+
+function renderPeriodSection(periodKey, title) {
+  const p = state.periods?.[periodKey];
+  if (!p?.computed) {
+    return `
+      <div style="margin-top:16px;">
+        <h4 style="margin:0;">${title}</h4>
+        <div style="opacity:0.75; margin-top:6px;">(No period results found.)</div>
+      </div>
+    `;
+  }
+
+  const q1 = periodQCorrect(periodKey, "q1");
+  const q2 = periodQCorrect(periodKey, "q2");
+  const q3 = periodQCorrect(periodKey, "q3");
+
+  const q1Scr = isScratched(periodKey, "q1_goal");
+  const q2Scr = isScratched(periodKey, "q2_penalty");
+  const q3Scr = isScratched(periodKey, "q3_both5sog");
+
+  const scrLine = (qidScr) => qidScr ? ` <span style="font-size:0.9rem; opacity:0.75;">(SCRATCHED 🐶)</span>` : "";
+
+  // What they picked
+  const picks = p.picks;
+
+  const p1 = yn(picks.q1_goal.player);
+  const h1 = q1Scr ? "—" : yn(picks.q1_goal.house);
+
+  const p2 = yn(picks.q2_penalty.player);
+  const h2 = q2Scr ? "—" : yn(picks.q2_penalty.house);
+
+  const p3 = yn(picks.q3_both5sog.player);
+  const h3 = q3Scr ? "—" : yn(picks.q3_both5sog.house);
+
+  const winnerText =
+    p.computed.periodWinner === "player" ? `${state.player1}` :
+    p.computed.periodWinner === "house" ? `${state.house}` :
+    "Tie";
+
+  return `
+    <div style="margin-top:18px; border-top:2px solid #eee; padding-top:12px;">
+      <h4 style="margin:0;">${title}</h4>
+
+      <div style="margin-top:10px; font-weight:700;">Q1: Will there be a goal this period?${scrLine(q1Scr)}</div>
+      ${renderTwoColRow({
+        leftLabel: state.player1,
+        leftVal: p1,
+        leftMark: mark(q1.player),
+        rightVal: h1,
+        rightMark: q1Scr ? "❌" : mark(q1.house)
+      })}
+
+      <div style="margin-top:10px; font-weight:700;">Q2: Will there be a penalty this period?${scrLine(q2Scr)}</div>
+      ${renderTwoColRow({
+        leftLabel: state.player1,
+        leftVal: p2,
+        leftMark: mark(q2.player),
+        rightVal: h2,
+        rightMark: q2Scr ? "❌" : mark(q2.house)
+      })}
+
+      <div style="margin-top:10px; font-weight:700;">Q3: Will each team record at least 5 SOG this period?${scrLine(q3Scr)}</div>
+      <div style="opacity:0.75; margin:4px 0 0;">Truth: <strong>${yn(q3.truth)}</strong></div>
+      ${renderTwoColRow({
+        leftLabel: state.player1,
+        leftVal: p3,
+        leftMark: mark(q3.player),
+        rightVal: h3,
+        rightMark: q3Scr ? "❌" : mark(q3.house)
+      })}
+
+      <div style="margin-top:10px;">
+        <strong>Period ${p.n} winner:</strong> ${winnerText}
+      </div>
+    </div>
+  `;
+}
+
+function renderPostgameSummary() {
+  ensureRegulationState();
+
+  // Determine winner label (we prefer final.winner if present, else regulation winner if not tied)
+  let winner = state.final?.winner;
+  if (!winner && state.regulation?.locked) {
+    if (state.regulation.awayGoals > state.regulation.homeGoals) winner = "Away";
+    else if (state.regulation.homeGoals > state.regulation.awayGoals) winner = "Home";
+  }
+
+  const winnerTeam = winner === "Away" ? state.away : winner === "Home" ? state.home : null;
+
+  const playerWins = state.score.player > state.score.house;
+  const houseWins  = state.score.house > state.score.player;
+
+  const headline =
+    playerWins ? `${state.player1} WINS!!!!!` :
+    houseWins ? `${state.house} WINS!!!!!` :
+    `It’s a TIE!!!!!`;
+
+  const preQ1 = state.pre?.q1;
+  const preQ2 = state.pre?.q2;
+
+  // Pregame correctness (only scoreable once winner known)
+  const preQ1Truth = winner; // "Away"|"Home"|null
+  const preQ1PlayerOk = preQ1Truth ? (preQ1?.player === preQ1Truth) : false;
+  const preQ1HouseOk  = preQ1Truth ? (preQ1?.house === preQ1Truth) : false;
+
+  const ppTruth = state.regulation?.ppGoal; // "Yes"|"No"|null
+  const preQ2PlayerOk = (ppTruth === "Yes" || ppTruth === "No") ? (preQ2?.player === ppTruth) : false;
+  const preQ2HouseOk  = (ppTruth === "Yes" || ppTruth === "No") ? (preQ2?.house === ppTruth) : false;
+
+  const endedIn = state.final?.endedIn
+    ? state.final.endedIn
+    : (state.regulation?.locked && state.regulation.awayGoals !== state.regulation.homeGoals ? "REG" : null);
+
+  // OT / SO truth blocks (if played)
+  const otPlayed = state.ot?.lockedTruth;
+  const soPlayed = state.so?.lockedTruth;
+
+  const otPlayerOk = otPlayed ? (state.ot.picks.player === state.ot.truth) : false;
+  const otHouseOk  = otPlayed ? (state.ot.picks.house === state.ot.truth) : false;
+
+  const soPlayerOk = soPlayed ? (state.so.picks.player === state.so.truth) : false;
+  const soHouseOk  = soPlayed ? (state.so.picks.house === state.so.truth) : false;
+
+  const goodBoyLine = state.goodBoy?.earned
+    ? `<div style="margin-top:10px; padding:10px; border:1px dashed #bbb;">
+         <strong>Good Boy:</strong> ${state.goodBoy.resolved
+           ? `Roll ${state.goodBoy.roll} → ${state.goodBoy.target}. ${state.goodBoy.housePointRemoved ? "House -1 ✅" : "No effect."}`
+           : `Earned but not resolved.`
+         }
+       </div>`
+    : "";
+
+  return `
+    <div style="margin-top:16px; border:1px solid #ccc; padding:14px; max-width:960px;">
+      <div style="text-align:center;">
+        <div style="font-weight:900; letter-spacing:1px;">BEWARE OF THE DOG</div>
+        <div style="margin-top:6px; font-size:1.15rem; font-weight:800;">Postgame Summary</div>
+        <div style="margin-top:10px; font-size:1.35rem; font-weight:900;">${headline}</div>
+        <div style="margin-top:8px;">
+          <strong>Final points:</strong> ${state.player1} ${state.score.player} — ${state.house} ${state.score.house}
+        </div>
+        <div style="margin-top:6px; opacity:0.85;">
+          <strong>Real game winner:</strong> ${winnerTeam ? winnerTeam : "—"} &nbsp; | &nbsp;
+          <strong>Ended in:</strong> ${endedIn ?? "—"}
+        </div>
+      </div>
+
+      ${goodBoyLine}
+
+      <div style="margin-top:18px; border-top:2px solid #eee; padding-top:12px;">
+        <h4 style="margin:0;">PreGame</h4>
+
+        <div style="margin-top:10px; font-weight:700;">Q1: Who will win?</div>
+        <div style="opacity:0.75; margin:4px 0 0;">Truth: <strong>${winnerTeam ?? "—"}</strong></div>
+        ${renderTwoColRow({
+          leftLabel: state.player1,
+          leftVal: pickTextPreQ1(preQ1?.player),
+          leftMark: preQ1Truth ? mark(preQ1PlayerOk) : "—",
+          rightVal: pickTextPreQ1(preQ1?.house),
+          rightMark: preQ1Truth ? mark(preQ1HouseOk) : "—"
+        })}
+
+        <div style="margin-top:10px; font-weight:700;">Q2: Will there be a power-play goal?</div>
+        <div style="opacity:0.75; margin:4px 0 0;">Truth: <strong>${ppTruth ?? "—"}</strong></div>
+        ${renderTwoColRow({
+          leftLabel: state.player1,
+          leftVal: yn(preQ2?.player),
+          leftMark: (ppTruth === "Yes" || ppTruth === "No") ? mark(preQ2PlayerOk) : "—",
+          rightVal: yn(preQ2?.house),
+          rightMark: (ppTruth === "Yes" || ppTruth === "No") ? mark(preQ2HouseOk) : "—"
+        })}
+      </div>
+
+      ${renderPeriodSection("p1", "Period 1")}
+      ${renderPeriodSection("p2", "Period 2")}
+      ${renderPeriodSection("p3", "Period 3")}
+
+      ${
+        otPlayed ? `
+          <div style="margin-top:18px; border-top:2px solid #eee; padding-top:12px;">
+            <h4 style="margin:0;">Overtime (1 pt)</h4>
+            <div style="margin-top:10px; font-weight:700;">Q: Will the game end in OT?</div>
+            <div style="opacity:0.75; margin:4px 0 0;">Truth: <strong>${state.ot.truth}</strong></div>
+            ${renderTwoColRow({
+              leftLabel: state.player1,
+              leftVal: yn(state.ot.picks.player),
+              leftMark: mark(otPlayerOk),
+              rightVal: yn(state.ot.picks.house),
+              rightMark: mark(otHouseOk)
+            })}
+          </div>
+        ` : ``
+      }
+
+      ${
+        soPlayed ? `
+          <div style="margin-top:18px; border-top:2px solid #eee; padding-top:12px;">
+            <h4 style="margin:0;">Shootout (1 pt)</h4>
+            <div style="margin-top:10px; font-weight:700;">Q: Will the shootout last longer than 3 rounds?</div>
+            <div style="opacity:0.75; margin:4px 0 0;">Truth: <strong>${state.so.truth}</strong></div>
+            ${renderTwoColRow({
+              leftLabel: state.player1,
+              leftVal: yn(state.so.picks.player),
+              leftMark: mark(soPlayerOk),
+              rightVal: yn(state.so.picks.house),
+              rightMark: mark(soHouseOk)
+            })}
+          </div>
+        ` : ``
+      }
+
+      <div style="margin-top:18px; display:flex; gap:10px; flex-wrap:wrap;">
+        <button id="restartGame">New Game</button>
+      </div>
     </div>
   `;
 }
@@ -771,6 +1216,49 @@ function awardPregamePointsFromRegulation() {
   saveState();
 }
 
+function finalizeTieGameAndAwardAll() {
+  ensureRegulationState();
+
+  // Must have final.winner set
+  if (!state.final?.winner) return;
+
+  // Award OT question if not yet awarded
+  if (!state.otsoAwarded.ot && state.ot?.lockedTruth) {
+    const truth = state.ot.truth; // "Yes" | "No"
+    const p = state.ot.picks;
+    if (p.player === truth) state.score.player += 1;
+    if (p.house === truth) state.score.house += 1;
+    state.otsoAwarded.ot = true;
+  }
+
+  // Award SO question if game ended in SO and not yet awarded
+  if (state.final.endedIn === "SO" && !state.otsoAwarded.so && state.so?.lockedTruth) {
+    const truth = state.so.truth; // "Yes" | "No"
+    const p = state.so.picks;
+    if (p.player === truth) state.score.player += 1;
+    if (p.house === truth) state.score.house += 1;
+    state.otsoAwarded.so = true;
+  }
+
+  // Award pregame Q1/Q2 now that we know final winner + PP goal
+  if (!state.pregameAwarded.q1) {
+    const q1 = state.pre?.q1;
+    if (q1?.player === state.final.winner) state.score.player += 1;
+    if (q1?.house === state.final.winner) state.score.house += 1;
+    state.pregameAwarded.q1 = true;
+  }
+
+  if (!state.pregameAwarded.q2) {
+    const q2 = state.pre?.q2;
+    const truth = state.regulation?.ppGoal; // "Yes" | "No"
+    if (q2?.player === truth) state.score.player += 1;
+    if (q2?.house === truth) state.score.house += 1;
+    state.pregameAwarded.q2 = true;
+  }
+
+  saveState();
+}
+
 /* -------------------------
    Wiring / Handlers
 -------------------------- */
@@ -785,7 +1273,8 @@ function wireHandlers() {
   if (state.screen === "p3") wirePeriodButtons("p3");
   if (state.screen === "goodboy") wireGoodBoyButtons();
   if (state.screen === "regulation") wireRegulationButtons();
-  if (state.screen === "ot_stub") wireOTStubButtons();
+  if (state.screen === "ot") wireOTButtons();
+  if (state.screen === "so") wireSOButtons();
   
   // Nav
   const toQ2 = document.getElementById("toQ2");
@@ -913,17 +1402,106 @@ function wireRegulationButtons() {
   }
 
   const toOT = document.getElementById("toOT");
-  if (toOT) toOT.onclick = () => { state.screen = "ot_stub"; render(); };
+  if (toOT) toOT.onclick = () => { state.screen = "ot"; render(); };
 
   const award = document.getElementById("awardPregame");
   if (award) {
     award.onclick = () => {
       awardPregamePointsFromRegulation();
       // for now just show postgame stub
-      state.screen = "postgame_stub";
+      state.screen = "postgame";
       render();
     };
   }
+}
+
+function wireOTButtons() {
+  ensureRegulationState();
+  const ot = state.ot;
+
+  const back = document.getElementById("backToRegulation");
+  if (back) back.onclick = () => { state.screen = "regulation"; render(); };
+
+  const pYes = document.getElementById("ot_playerYes");
+  const pNo  = document.getElementById("ot_playerNo");
+  if (pYes) pYes.onclick = () => { ot.picks.player = "Yes"; ot.picks.lockedPlayer = true; render(); };
+  if (pNo)  pNo.onclick  = () => { ot.picks.player = "No";  ot.picks.lockedPlayer = true; render(); };
+
+  const hYes = document.getElementById("ot_houseYes");
+  const hNo  = document.getElementById("ot_houseNo");
+  if (hYes) hYes.onclick = () => { ot.picks.house = "Yes"; ot.picks.lockedHouse = true; render(); };
+  if (hNo)  hNo.onclick  = () => { ot.picks.house = "No";  ot.picks.lockedHouse = true; render(); };
+
+  const tYes = document.getElementById("ot_truthYes");
+  const tNo  = document.getElementById("ot_truthNo");
+  if (tYes) tYes.onclick = () => { ot.truth = "Yes"; render(); };
+  if (tNo)  tNo.onclick  = () => { ot.truth = "No"; render(); };
+
+  const lockTruth = document.getElementById("ot_lockTruth");
+  if (lockTruth) lockTruth.onclick = () => {
+    if (ot.truth !== "Yes" && ot.truth !== "No") { alert("Select Yes/No for OT outcome."); return; }
+    ot.lockedTruth = true;
+    render();
+  };
+
+  const toSO = document.getElementById("toSO");
+  if (toSO) toSO.onclick = () => { state.screen = "so"; render(); };
+
+  // Final winner buttons (only when ended in OT)
+  const wA = document.getElementById("finalWinnerAway");
+  const wH = document.getElementById("finalWinnerHome");
+  if (wA) wA.onclick = () => { state.final.winner = "Away"; state.final.endedIn = "OT"; render(); };
+  if (wH) wH.onclick = () => { state.final.winner = "Home"; state.final.endedIn = "OT"; render(); };
+
+  const finalize = document.getElementById("finalizeFromOT");
+  if (finalize) finalize.onclick = () => {
+    finalizeTieGameAndAwardAll();
+    state.screen = "postgame";
+    render();
+  };
+}
+
+function wireSOButtons() {
+  ensureRegulationState();
+  const so = state.so;
+
+  const back = document.getElementById("backToOT");
+  if (back) back.onclick = () => { state.screen = "ot"; render(); };
+
+  const pYes = document.getElementById("so_playerYes");
+  const pNo  = document.getElementById("so_playerNo");
+  if (pYes) pYes.onclick = () => { so.picks.player = "Yes"; so.picks.lockedPlayer = true; render(); };
+  if (pNo)  pNo.onclick  = () => { so.picks.player = "No";  so.picks.lockedPlayer = true; render(); };
+
+  const hYes = document.getElementById("so_houseYes");
+  const hNo  = document.getElementById("so_houseNo");
+  if (hYes) hYes.onclick = () => { so.picks.house = "Yes"; so.picks.lockedHouse = true; render(); };
+  if (hNo)  hNo.onclick  = () => { so.picks.house = "No";  so.picks.lockedHouse = true; render(); };
+
+  const tYes = document.getElementById("so_truthYes");
+  const tNo  = document.getElementById("so_truthNo");
+  if (tYes) tYes.onclick = () => { so.truth = "Yes"; render(); };
+  if (tNo)  tNo.onclick  = () => { so.truth = "No"; render(); };
+
+  const lockTruth = document.getElementById("so_lockTruth");
+  if (lockTruth) lockTruth.onclick = () => {
+    if (so.truth !== "Yes" && so.truth !== "No") { alert("Select Yes/No for shootout outcome."); return; }
+    so.lockedTruth = true;
+    render();
+  };
+
+  // Final winner buttons
+  const wA = document.getElementById("finalWinnerAwaySO");
+  const wH = document.getElementById("finalWinnerHomeSO");
+  if (wA) wA.onclick = () => { state.final.winner = "Away"; state.final.endedIn = "SO"; state.final.soLongerThan3 = so.truth; render(); };
+  if (wH) wH.onclick = () => { state.final.winner = "Home"; state.final.endedIn = "SO"; state.final.soLongerThan3 = so.truth; render(); };
+
+  const finalize = document.getElementById("finalizeFromSO");
+  if (finalize) finalize.onclick = () => {
+    finalizeTieGameAndAwardAll();
+    state.screen = "postgame";
+    render();
+  };
 }
 
 function wireOTStubButtons() {
