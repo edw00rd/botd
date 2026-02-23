@@ -898,11 +898,13 @@ function renderOT() {
         <div style="flex:1; border-top:1px solid #eee; padding-top:10px;">
           <div style="font-weight:700; margin-bottom:6px;">${state.player1}</div>
           ${playerSection}
+          <div style="opacity:0.8;">Selected: <strong>${yn(ot.picks.player)}</strong></div>
         </div>
         <div style="width:1px; background:#eee; align-self:stretch;"></div>
         <div style="flex:1; border-top:1px solid #eee; padding-top:10px;">
           <div style="font-weight:700; margin-bottom:6px;">${state.house}</div>
           ${houseSection}
+          <div style="opacity:0.8;">Selected: <strong>${yn(ot.picks.house)}</strong></div>
         </div>
       </div>
 
@@ -978,11 +980,13 @@ function renderSO() {
         <div style="flex:1; border-top:1px solid #eee; padding-top:10px;">
           <div style="font-weight:700; margin-bottom:6px;">${state.player1}</div>
           ${playerSection}
+          <div style="opacity:0.8;">Selected: <strong>${yn(so.picks.player)}</strong></div>
         </div>
         <div style="width:1px; background:#eee; align-self:stretch;"></div>
         <div style="flex:1; border-top:1px solid #eee; padding-top:10px;">
           <div style="font-weight:700; margin-bottom:6px;">${state.house}</div>
           ${houseSection}
+          <div style="opacity:0.8;">Selected: <strong>${yn(so.picks.house)}</strong></div>
         </div>
       </div>
 
