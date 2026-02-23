@@ -18,7 +18,30 @@ if (!state) {
 
   // Core
   state.score = state.score ?? { player: 0, house: 0 };
+  
+// Mode: "HOUSE" (default) or "VS" (symmetric)
+state.mode = state.mode ?? "HOUSE";
+
+// VS mode uses player2 name (aliasing prior 'house' field)
+state.player2 = state.player2 ?? state.house;
+  if (state.mode === "VS") state.house = state.player2;
+
+// DOGs:
+// - HOUSE mode: single pool for Player 1 (legacy: number)
+// - VS mode: two pools { player: n, house: n } (house == Player 2)
+if (state.mode === "VS") {
+  // Migrate legacy numeric dogs into Player 1 by default
+  if (typeof state.dogs === "number") {
+    state.dogs = { player: (Number.isFinite(state.dogs) ? state.dogs : 0), house: 0 };
+  } else {
+    state.dogs = state.dogs ?? {};
+    state.dogs.player = Number.isFinite(state.dogs.player) ? state.dogs.player : 0;
+    state.dogs.house  = Number.isFinite(state.dogs.house)  ? state.dogs.house  : 0;
+  }
+} else {
+  // HOUSE mode legacy behavior
   state.dogs = Number.isFinite(state.dogs) ? state.dogs : 0;
+}
 
   // LIVE toggle (API later); House can disable anytime
   state.live = !!state.live;
@@ -76,8 +99,9 @@ if (!state) {
 }
 
 function renderDogs(count) {
-  if (!count || count <= 0) return "—";
-  return "🐶".repeat(count);
+  const n = Number.isFinite(count) ? count : 0;
+  if (!n || n <= 0) return "—";
+  return "🐶".repeat(n);
 }
 
 function mkPickState() {
@@ -192,7 +216,11 @@ function render() {
           <p style="margin:6px 0;"><strong>${state.player1}</strong> vs <strong>${state.house}</strong></p>
           <p style="margin:6px 0;">
             <strong>Score:</strong> ${state.player1} ${state.score.player} — ${state.house} ${state.score.house}
-            &nbsp; | &nbsp; <strong>DOGs:</strong> ${renderDogs(state.dogs)}
+            &nbsp; | &nbsp; <strong>DOGs:</strong> ${
+  (state.mode === "VS")
+    ? `${state.player1}: ${renderDogs(state.dogs.player)} &nbsp; | &nbsp; ${state.player2}: ${renderDogs(state.dogs.house)}`
+    : renderDogs(state.dogs)
+}
           </p>
           <p style="margin:6px 0;"><strong>ANTE:</strong> ${state.ante || "(none)"} </p>
         </div>
@@ -288,26 +316,63 @@ function renderDogsDeltaLine(periodKey) {
   if (!p?.computed) return "";
 
   const n = p.n;
-  const scratches = countScratches(periodKey);
+  const isVS = state.mode === "VS";
 
-  const spentTxt = scratches > 0
-    ? `Spent: <strong>${"🐶".repeat(scratches)}</strong> (scratches: ${scratches})`
-    : `Spent: <strong>—</strong>`;
+  const scratchesHouseMode = (p?.dogSpend?.scratchedList ?? []).length;
+
+  const scratchesVS = (side) => (p?.dogSpend?.[side]?.scratchedList ?? []).length;
+
+  if (!isVS) {
+    const spentTxt = scratchesHouseMode > 0
+      ? `Spent: <strong>${"🐶".repeat(scratchesHouseMode)}</strong> (scratches: ${scratchesHouseMode})`
+      : `Spent: <strong>—</strong>`;
+
+    if (n === 1 || n === 2) {
+      const w = p.computed.periodWinner;
+      const delta = (w === "player") ? "+1 🐶" : (w === "house") ? "−1 🐶" : "±0 🐶";
+      return `<div style="margin-top:8px; opacity:0.9;"><strong>DOGs:</strong> ${delta} &nbsp; | &nbsp; ${spentTxt}</div>`;
+    }
+
+    const voided = !!p.dogSpend?.voided;
+    const voidTxt = voided ? "Leftover DOGs: <strong>VOIDED</strong> (first pick locked)" : "Leftover DOGs: <strong>—</strong>";
+    const gb = (p.computed.periodWinner === "player") ? "Good Boy: <strong>EARNED ✅</strong>" : "Good Boy: <strong>—</strong>";
+
+    return `
+      <div style="margin-top:8px; opacity:0.9;">
+        <strong>DOGs:</strong> ${voidTxt} &nbsp; | &nbsp; ${spentTxt} &nbsp; | &nbsp; ${gb}
+      </div>
+    `;
+  }
+
+  // VS mode
+  const pSpent = scratchesVS("player");
+  const hSpent = scratchesVS("house");
+  const spentTxt = `
+    <strong>${state.player1}</strong> spent: ${pSpent ? "🐶".repeat(pSpent) : "—"}
+    &nbsp; | &nbsp;
+    <strong>${state.player2}</strong> spent: ${hSpent ? "🐶".repeat(hSpent) : "—"}
+  `;
 
   if (n === 1 || n === 2) {
     const w = p.computed.periodWinner;
-    const delta = (w === "player") ? "+1 🐶" : (w === "house") ? "−1 🐶" : "±0 🐶";
-    return `<div style="margin-top:8px; opacity:0.9;"><strong>DOGs:</strong> ${delta} &nbsp; | &nbsp; ${spentTxt}</div>`;
+    const pDelta = (w === "player") ? "+1 🐶" : "±0 🐶";
+    const hDelta = (w === "house") ? "+1 🐶" : "±0 🐶";
+    return `<div style="margin-top:8px; opacity:0.9;"><strong>DOGs:</strong> ${state.player1}: ${pDelta} &nbsp; | &nbsp; ${state.player2}: ${hDelta} &nbsp; | &nbsp; ${spentTxt}</div>`;
   }
 
-  const voided = !!p.dogSpend?.voided;
-  const voidTxt = voided
-    ? "Leftover DOGs: <strong>VOIDED</strong> (first pick locked)"
-    : "Leftover DOGs: <strong>—</strong>";
+  const pVoided = !!p.dogSpend?.player?.voided;
+  const hVoided = !!p.dogSpend?.house?.voided;
+
+  const voidTxt = `
+    Leftover DOGs: ${state.player1} <strong>${pVoided ? "VOIDED" : "—"}</strong>,
+    ${state.player2} <strong>${hVoided ? "VOIDED" : "—"}</strong>
+  `;
 
   const gb = (p.computed.periodWinner === "player")
-    ? "Good Boy: <strong>EARNED ✅</strong>"
-    : "Good Boy: <strong>—</strong>";
+    ? `${state.player1}: <strong>GOOD BOY ✅</strong>`
+    : (p.computed.periodWinner === "house")
+      ? `${state.player2}: <strong>GOOD BOY ✅</strong>`
+      : `Good Boy: <strong>—</strong>`;
 
   return `
     <div style="margin-top:8px; opacity:0.9;">
@@ -320,27 +385,69 @@ function renderDogsLinePostgame(periodKey) {
   const p = state.periods?.[periodKey];
   if (!p?.computed) return "";
 
-  const scratches = countScratches(periodKey);
-  const spentTxt = scratches > 0 ? `${"🐶".repeat(scratches)} (scratches: ${scratches})` : "—";
+  const isVS = state.mode === "VS";
 
-  if (p.n === 1 || p.n === 2) {
-    const w = p.computed.periodWinner;
-    const delta = (w === "player") ? "+1 🐶" : (w === "house") ? "−1 🐶" : "±0 🐶";
+  if (!isVS) {
+    const scratches = (p?.dogSpend?.scratchedList ?? []).length;
+    const spentTxt = scratches > 0 ? `${"🐶".repeat(scratches)} (scratches: ${scratches})` : "—";
+
+    if (p.n === 1 || p.n === 2) {
+      const w = p.computed.periodWinner;
+      const delta = (w === "player") ? "+1 🐶" : (w === "house") ? "−1 🐶" : "±0 🐶";
+      return `
+        <div style="margin-top:8px; opacity:0.9;">
+          <strong>DOGs:</strong> ${delta} &nbsp; | &nbsp; Spent: <strong>${spentTxt}</strong>
+        </div>
+      `;
+    }
+
+    const voided = !!p.dogSpend?.voided;
+    const voidTxt = voided ? "VOIDED (first pick locked)" : "—";
+    const gbTxt = (p.computed.periodWinner === "player") ? "EARNED ✅" : "—";
     return `
       <div style="margin-top:8px; opacity:0.9;">
-        <strong>DOGs:</strong> ${delta} &nbsp; | &nbsp; Spent: <strong>${spentTxt}</strong>
+        <strong>DOGs:</strong> Leftover: <strong>${voidTxt}</strong>
+        &nbsp; | &nbsp; Spent: <strong>${spentTxt}</strong>
+        &nbsp; | &nbsp; Good Boy: <strong>${gbTxt}</strong>
       </div>
     `;
   }
 
-  const voided = !!p.dogSpend?.voided;
-  const voidTxt = voided ? "VOIDED (first pick locked)" : "—";
-  const gbTxt = (p.computed.periodWinner === "player") ? "EARNED ✅" : "—";
+  const pSpent = (p?.dogSpend?.player?.scratchedList ?? []).length;
+  const hSpent = (p?.dogSpend?.house?.scratchedList ?? []).length;
+
+  const spentTxt = `
+    ${state.player1}: <strong>${pSpent ? "🐶".repeat(pSpent) : "—"}</strong>
+    &nbsp; | &nbsp;
+    ${state.player2}: <strong>${hSpent ? "🐶".repeat(hSpent) : "—"}</strong>
+  `;
+
+  if (p.n === 1 || p.n === 2) {
+    const w = p.computed.periodWinner;
+    const pDelta = (w === "player") ? "+1 🐶" : "±0 🐶";
+    const hDelta = (w === "house") ? "+1 🐶" : "±0 🐶";
+    return `
+      <div style="margin-top:8px; opacity:0.9;">
+        <strong>DOGs:</strong> ${state.player1}: ${pDelta} &nbsp; | &nbsp; ${state.player2}: ${hDelta}
+        &nbsp; | &nbsp; Spent: ${spentTxt}
+      </div>
+    `;
+  }
+
+  const pVoided = !!p.dogSpend?.player?.voided;
+  const hVoided = !!p.dogSpend?.house?.voided;
+  const voidTxt = `${state.player1}: <strong>${pVoided ? "VOIDED" : "—"}</strong> &nbsp; | &nbsp; ${state.player2}: <strong>${hVoided ? "VOIDED" : "—"}</strong>`;
+
+  const gbTxt = (p.computed.periodWinner === "player")
+    ? `${state.player1} EARNED ✅`
+    : (p.computed.periodWinner === "house")
+      ? `${state.player2} EARNED ✅`
+      : "—";
 
   return `
     <div style="margin-top:8px; opacity:0.9;">
-      <strong>DOGs:</strong> Leftover: <strong>${voidTxt}</strong>
-      &nbsp; | &nbsp; Spent: <strong>${spentTxt}</strong>
+      <strong>DOGs:</strong> Leftover: ${voidTxt}
+      &nbsp; | &nbsp; Spent: ${spentTxt}
       &nbsp; | &nbsp; Good Boy: <strong>${gbTxt}</strong>
     </div>
   `;
@@ -422,53 +529,95 @@ function renderPeriod(key, opts = {}) {
 
   const isP2 = key === "p2";
   const isP3 = key === "p3";
+  const isVS = state.mode === "VS";
 
   // How many scratches allowed
   const maxScratches = isP3 ? 2 : (isP2 ? 1 : 0);
 
-  // Normalize scratched list
-  p.dogSpend.scratchedList = p.dogSpend.scratchedList ?? (p.dogSpend.scratched ? [p.dogSpend.scratched] : []);
+  // Back-compat normalize scratched list(s)
+  p.dogSpend = p.dogSpend ?? {};
+  if (!isVS) {
+    p.dogSpend.scratchedList = p.dogSpend.scratchedList ?? (p.dogSpend.scratched ? [p.dogSpend.scratched] : []);
+  } else {
+    // VS: per-side dogSpend
+    p.dogSpend.player = p.dogSpend.player ?? { used: false, scratchedList: [], voided: false };
+    p.dogSpend.house  = p.dogSpend.house  ?? { used: false, scratchedList: [], voided: false };
 
-  const anyPlayerLocked =
-    picks.q1_goal.lockedPlayer || picks.q2_penalty.lockedPlayer || picks.q3_both5sog.lockedPlayer;
+    // Migrate any legacy scratches into player side
+    if (Array.isArray(p.dogSpend.scratchedList) && p.dogSpend.scratchedList.length && p.dogSpend.player.scratchedList.length === 0) {
+      p.dogSpend.player.scratchedList = [...p.dogSpend.scratchedList];
+      delete p.dogSpend.scratchedList;
+    }
+  }
 
-  // Can spend dogs at the beginning of P2 or P3 only
-  const canSpendDog =
-    (isP2 || isP3) &&
-    state.dogs > 0 &&
-    !p.lockedResults &&
-    !anyPlayerLocked &&
-    !p.dogSpend.voided && // P3 may void
-    (p.dogSpend.scratchedList.length < maxScratches);
+  const anyLockedBySide = (side) =>
+    picks.q1_goal[`locked${side === "player" ? "Player" : "House"}`] ||
+    picks.q2_penalty[`locked${side === "player" ? "Player" : "House"}`] ||
+    picks.q3_both5sog[`locked${side === "player" ? "Player" : "House"}`];
 
-  const scratchPanel = canSpendDog ? `
-    <div style="margin-top:12px; border:1px solid #ddd; padding:10px; max-width:860px;">
-      <div style="font-weight:800; margin-bottom:6px;">Spend DOGs 🐶</div>
-      <div style="opacity:0.85; margin-bottom:10px;">
-        Spend <strong>1 DOG</strong> to scratch <strong>one House question</strong> this period.
-        ${isP3 ? `You may scratch up to <strong>2</strong> questions in Period 3.` : `Period 2 allows <strong>1</strong> scratch.`}
-        Must choose before ${state.player1} locks any picks.
-        ${isP3 ? `<div style="margin-top:6px; font-size:0.9rem; opacity:0.75;">(Once Period 3 starts, leftover DOGs become void.)</div>` : ""}
+  const scratchedList = (side) => {
+    if (!isVS) return p.dogSpend.scratchedList ?? [];
+    return (side === "player" ? p.dogSpend.player.scratchedList : p.dogSpend.house.scratchedList) ?? [];
+  };
+
+  const isScratchedBy = (side, qid) => scratchedList(side).includes(qid);
+  const isScratchedAgainst = (side, qid) => isVS ? isScratchedBy(side === "player" ? "house" : "player", qid) : isScratchedBy("player", qid);
+
+  const dogsCount = (side) => {
+    if (!isVS) return state.dogs ?? 0;
+    return side === "player" ? (state.dogs.player ?? 0) : (state.dogs.house ?? 0);
+  };
+
+  const scratchButtonsHTML = (side) => {
+    const sideLabel = side === "player" ? state.player1 : state.player2;
+    const canSpend =
+      (isP2 || isP3) &&
+      dogsCount(side) > 0 &&
+      !p.lockedResults &&
+      !anyLockedBySide(side) &&
+      !(isVS ? (p.dogSpend[side].voided) : p.dogSpend.voided) &&
+      (scratchedList(side).length < maxScratches);
+
+    if (!canSpend) return "";
+
+    const prefix = isVS ? `${side}_` : "";
+    const scratchesNow = scratchedList(side).length;
+
+    return `
+      <div style="margin-top:12px; border:1px solid #ddd; padding:10px; max-width:860px;">
+        <div style="font-weight:800; margin-bottom:6px;">${sideLabel}: Spend DOGs 🐶</div>
+        <div style="opacity:0.85; margin-bottom:10px;">
+          Spend <strong>1 DOG</strong> to scratch <strong>one opponent question</strong> this period.
+          ${isP3 ? `You may scratch up to <strong>2</strong> questions in Period 3.` : `Period 2 allows <strong>1</strong> scratch.`}
+          Must choose before ${sideLabel} locks any picks.
+          ${isP3 ? `<div style="margin-top:6px; font-size:0.9rem; opacity:0.75;">(Once Period 3 starts, leftover DOGs become void for that player.)</div>` : ""}
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button id="scratch_${prefix}q1">Scratch Q1 (Goal?)</button>
+          <button id="scratch_${prefix}q2">Scratch Q2 (Penalty?)</button>
+          <button id="scratch_${prefix}q3">Scratch Q3 (Both 5+ SOG?)</button>
+        </div>
+        <div style="margin-top:8px; font-size:0.9rem; opacity:0.75;">
+          DOGs: ${renderDogs(dogsCount(side))} &nbsp; | &nbsp; Scratches: ${scratchesNow}/${maxScratches}
+        </div>
       </div>
-      <div style="display:flex; gap:10px; flex-wrap:wrap;">
-        <button id="scratch_q1">Scratch Q1 (Goal?)</button>
-        <button id="scratch_q2">Scratch Q2 (Penalty?)</button>
-        <button id="scratch_q3">Scratch Q3 (Both 5+ SOG?)</button>
-      </div>
-      <div style="margin-top:8px; font-size:0.9rem; opacity:0.75;">
-        DOGs: ${renderDogs(state.dogs)} &nbsp; | &nbsp; Scratches: ${p.dogSpend.scratchedList.length}/${maxScratches}
-      </div>
-    </div>
-  ` : "";
+    `;
+  };
 
-  const isScratched = (qid) => p.dogSpend.scratchedList.includes(qid);
+  // Scratch panel(s)
+  const scratchPanel = (isP2 || isP3)
+    ? (isVS
+        ? `${scratchButtonsHTML("player")}${scratchButtonsHTML("house")}`
+        : scratchButtonsHTML("player"))
+    : "";
 
   const qCard = (label, pickState, idPrefix, qid) => {
     const playerSection = sealedYesNoSection({
       idPrefix: `${idPrefix}_player`,
       lockedSelf: pickState.lockedPlayer,
       lockedOther: true,
-      requireOtherLock: false
+      requireOtherLock: false,
+      disabledAll: (isP2 || isP3) && isScratchedAgainst("player", qid)
     });
 
     const houseSection = sealedYesNoSection({
@@ -476,10 +625,17 @@ function renderPeriod(key, opts = {}) {
       lockedSelf: pickState.lockedHouse,
       lockedOther: pickState.lockedPlayer,
       requireOtherLock: true,
-      disabledAll: (isP2 || isP3) && isScratched(qid)
+      disabledAll: (isP2 || isP3) && isScratchedAgainst("house", qid)
     });
 
-    const ready = pickState.lockedPlayer && (((isP2 || isP3) && isScratched(qid)) || pickState.lockedHouse);
+    const ready = pickState.lockedPlayer && pickState.lockedHouse;
+
+    const scratchBadges = (isP2 || isP3) ? `
+      <div style="margin-top:6px; font-size:0.9rem; opacity:0.75;">
+        ${isVS && isScratchedBy("player", qid) ? `<span>${state.player1} scratched ${prettyQ(qid)} ✅</span>` : ``}
+        ${isVS && isScratchedBy("house", qid) ? `<span>${state.player2} scratched ${prettyQ(qid)} ✅</span>` : ``}
+        ${!isVS && isScratchedBy("player", qid) ? `<span>Scratched (House disabled) ✅</span>` : ``}
+      </div>` : "";
 
     return `
       <div style="border:1px solid #eee; padding:10px; margin-top:10px;">
@@ -491,19 +647,20 @@ function renderPeriod(key, opts = {}) {
           </div>
           <div style="width:1px; background:#eee; align-self:stretch;"></div>
           <div style="flex:1;">
-            <div style="font-weight:700; margin-bottom:6px;">${state.house}</div>
+            <div style="font-weight:700; margin-bottom:6px;">${isVS ? state.player2 : state.house}</div>
             ${houseSection}
           </div>
         </div>
         ${ready ? `<div style="margin-top:6px; font-size:0.9rem; opacity:0.75;">Ready ✅</div>` : ""}
+        ${scratchBadges}
       </div>
     `;
   };
 
   const allLocked =
-    picks.q1_goal.lockedPlayer && (((isP2 || isP3) && isScratched("q1_goal")) || picks.q1_goal.lockedHouse) &&
-    picks.q2_penalty.lockedPlayer && (((isP2 || isP3) && isScratched("q2_penalty")) || picks.q2_penalty.lockedHouse) &&
-    picks.q3_both5sog.lockedPlayer && (((isP2 || isP3) && isScratched("q3_both5sog")) || picks.q3_both5sog.lockedHouse);
+    picks.q1_goal.lockedPlayer && picks.q1_goal.lockedHouse &&
+    picks.q2_penalty.lockedPlayer && picks.q2_penalty.lockedHouse &&
+    picks.q3_both5sog.lockedPlayer && picks.q3_both5sog.lockedHouse;
 
   const resultsNote = state.live
     ? `<div style="font-size:0.9rem; opacity:0.75; margin-bottom:8px;">LIVE is ON (API later). House can still enter results now.</div>`
@@ -511,7 +668,7 @@ function renderPeriod(key, opts = {}) {
 
   const resultsPanel = allLocked ? `
     <div style="margin-top:12px; border:1px solid #ddd; padding:10px; max-width:860px;">
-      <div style="font-weight:700; margin-bottom:6px;">Period ${p.n} Results (House)</div>
+      <div style="font-weight:700; margin-bottom:6px;">Period ${p.n} Results (${state.house})</div>
       ${resultsNote}
 
       ${
@@ -588,8 +745,8 @@ function renderPeriod(key, opts = {}) {
   const p3Banner = opts.p3Mode ? `
     <div style="margin-top:10px; padding:10px; border:1px dashed #bbb; opacity:0.95;">
       <strong>Period 3 note:</strong> Spend DOGs <em>before</em> locking your first pick.
-      Once ${state.player1} locks any Period 3 pick, leftover DOGs become <strong>void</strong>.
-      If ${state.player1} wins Period 3, they earn <strong>Good Boy!</strong> (FETCH!!).
+      Once you lock any Period 3 pick, your leftover DOGs become <strong>void</strong>.
+      If you win Period 3, you earn <strong>Good Boy!</strong> (FETCH!!).
     </div>
   ` : "";
 
@@ -676,8 +833,16 @@ function prettyQ(qid) {
 /* -------------------------
    Good Boy (House point removal)
 -------------------------- */
+
 function renderGoodBoy() {
   const gb = state.goodBoy;
+  const isVS = state.mode === "VS";
+
+  const ownerName =
+    (isVS && gb.owner === "house") ? state.player2 : state.player1;
+
+  const opponentName =
+    (isVS && gb.owner === "house") ? state.player1 : state.player2;
 
   const mapping = `
     <div style="margin-top:10px; font-size:0.95rem; opacity:0.85;">
@@ -696,7 +861,7 @@ function renderGoodBoy() {
          <div style="font-weight:800;">FETCH!! Result</div>
          <div style="margin-top:6px;">Roll: <strong>${gb.roll}</strong> → Target: <strong>${gb.target}</strong></div>
          <div style="margin-top:6px;">Effect: ${
-           gb.housePointRemoved ? "<strong>House -1 point ✅</strong>" : "<strong>No effect</strong>"
+           gb.housePointRemoved ? `<strong>${opponentName} -1 point ✅</strong>` : "<strong>No effect</strong>"
          }</div>
        </div>`
     : "";
@@ -705,15 +870,15 @@ function renderGoodBoy() {
     <div style="margin-top:16px; border:1px solid #ccc; padding:12px; max-width:860px;">
       <h3 style="margin-top:0;">Good Boy! 🐶 — FETCH!!</h3>
       <p>
-        You won Period 3, so you earned a <strong>Good Boy</strong>.
-        Roll 🎲 to target one of the House’s Period 1–2 questions.
-        If the House was correct on that target, they lose <strong>1 point</strong>.
+        <strong>${ownerName}</strong> won Period 3, so they earned a <strong>Good Boy</strong>.
+        Roll 🎲 to target one of <strong>${opponentName}</strong>’s Period 1–2 questions.
+        If <strong>${opponentName}</strong> was correct on that target, they lose <strong>1 point</strong>.
       </p>
 
       <div style="display:flex; gap:10px; flex-wrap:wrap;">
         <button id="gbRoll" ${gb.resolved ? "disabled" : ""}>FETCH!! (Roll 🎲)</button>
         <label style="display:flex; gap:8px; align-items:center;">
-          <span>House manual roll:</span>
+          <span>Manual roll:</span>
           <input id="gbManual" type="number" min="1" max="6" inputmode="numeric" style="width:80px;" ${gb.resolved ? "disabled" : ""}/>
           <button id="gbSetManual" ${gb.resolved ? "disabled" : ""}>Set</button>
         </label>
@@ -730,9 +895,6 @@ function renderGoodBoy() {
   `;
 }
 
-/* -------------------------
-   Regulation / OT / SO
--------------------------- */
 function ensureRegulationState() {
   state.regulation = state.regulation ?? {
     awayGoals: null,
@@ -861,8 +1023,8 @@ function renderOT() {
         ot.lockedTruth
           ? `<div style="margin:8px 0;"><strong>🔒 OT outcome locked:</strong> ${ot.truth}</div>`
           : `<div style="display:flex; gap:10px; flex-wrap:wrap; margin:10px 0;">
-               <button id="ot_truthYes">Yes (ended in OT)</button>
-               <button id="ot_truthNo">No (went to SO)</button>
+               <button id="ot_truthYes" style="${ot.truth === \"Yes\" ? \"font-weight:700; border:2px solid #000;\" : \"\"}">Yes (ended in OT)</button>
+               <button id="ot_truthNo" style="${ot.truth === \"No\" ? \"font-weight:700; border:2px solid #000;\" : \"\"}">No (went to SO)</button>
              </div>
              <div style="opacity:0.8; margin-top:6px;">Selected: <strong>${ot.truth ?? "—"}</strong></div>
                           <button id="ot_lockTruth">Lock OT Outcome</button>`
@@ -950,8 +1112,8 @@ function renderSO() {
         so.lockedTruth
           ? `<div style="margin:8px 0;"><strong>🔒 Shootout outcome locked:</strong> ${so.truth}</div>`
           : `<div style="display:flex; gap:10px; flex-wrap:wrap; margin:10px 0;">
-               <button id="so_truthYes">Yes (longer than 3 rounds)</button>
-               <button id="so_truthNo">No (3 rounds or fewer)</button>
+               <button id="so_truthYes" style="${so.truth === \"Yes\" ? \"font-weight:700; border:2px solid #000;\" : \"\"}">Yes (longer than 3 rounds)</button>
+               <button id="so_truthNo" style="${so.truth === \"No\" ? \"font-weight:700; border:2px solid #000;\" : \"\"}">No (3 rounds or fewer)</button>
              </div>
              <div style="opacity:0.8; margin-top:6px;">Selected: <strong>${so.truth ?? "—"}</strong></div>
                           <button id="so_lockTruth">Lock Shootout Outcome</button>`
@@ -1045,7 +1207,15 @@ function periodQCorrect(periodKey, qShort) {
 
 function isScratched(periodKey, qid) {
   const p = state.periods?.[periodKey];
-  const list = p?.dogSpend?.scratchedList ?? [];
+  if (!p?.dogSpend) return false;
+
+  if (state.mode === "VS") {
+    const pList = p.dogSpend?.player?.scratchedList ?? [];
+    const hList = p.dogSpend?.house?.scratchedList ?? [];
+    return pList.includes(qid) || hList.includes(qid);
+  }
+
+  const list = p.dogSpend?.scratchedList ?? [];
   return list.includes(qid);
 }
 
@@ -1650,86 +1820,180 @@ function wirePeriodButtons(key) {
 
   const isP2 = key === "p2";
   const isP3 = key === "p3";
+  const isVS = state.mode === "VS";
   const undoKey = key;
 
-  p.dogSpend.scratchedList = p.dogSpend.scratchedList ?? (p.dogSpend.scratched ? [p.dogSpend.scratched] : []);
+  // Ensure dogSpend shape
+  p.dogSpend = p.dogSpend ?? {};
+  if (!isVS) {
+    p.dogSpend.scratchedList = p.dogSpend.scratchedList ?? (p.dogSpend.scratched ? [p.dogSpend.scratched] : []);
+  } else {
+    p.dogSpend.player = p.dogSpend.player ?? { used: false, scratchedList: [], voided: false };
+    p.dogSpend.house  = p.dogSpend.house  ?? { used: false, scratchedList: [], voided: false };
 
-  const anyPlayerLocked = () =>
-    picks.q1_goal.lockedPlayer || picks.q2_penalty.lockedPlayer || picks.q3_both5sog.lockedPlayer;
-
-  // P3: void leftover dogs after player locks first pick
-  const voidDogsIfP3Started = () => {
-    if (!isP3) return;
-    if (p.dogSpend.voided) return;
-    if (anyPlayerLocked()) {
-      state.dogs = 0;
-      p.dogSpend.voided = true;
+    // Migrate legacy list into player side if present
+    if (Array.isArray(p.dogSpend.scratchedList) && p.dogSpend.scratchedList.length && p.dogSpend.player.scratchedList.length === 0) {
+      p.dogSpend.player.scratchedList = [...p.dogSpend.scratchedList];
+      delete p.dogSpend.scratchedList;
     }
-  };
+  }
 
   const maxScratches = isP3 ? 2 : (isP2 ? 1 : 0);
 
-  const canSpendDog =
-    (isP2 || isP3) &&
-    state.dogs > 0 &&
-    !p.lockedResults &&
-    !anyPlayerLocked() &&
-    !p.dogSpend.voided &&
-    (p.dogSpend.scratchedList.length < maxScratches);
+  const dogsCount = (side) => {
+    if (!isVS) return state.dogs ?? 0;
+    return side === "player" ? (state.dogs.player ?? 0) : (state.dogs.house ?? 0);
+  };
+  const setDogs = (side, val) => {
+    if (!isVS) { state.dogs = val; return; }
+    if (side === "player") state.dogs.player = val;
+    else state.dogs.house = val;
+  };
 
-  if (canSpendDog) {
-    const b1 = document.getElementById("scratch_q1");
-    const b2 = document.getElementById("scratch_q2");
-    const b3 = document.getElementById("scratch_q3");
+  const anyLockedBySide = (side) =>
+    picks.q1_goal[`locked${side === "player" ? "Player" : "House"}`] ||
+    picks.q2_penalty[`locked${side === "player" ? "Player" : "House"}`] ||
+    picks.q3_both5sog[`locked${side === "player" ? "Player" : "House"}`];
 
-    const doScratch = (qid) => {
-      if (p.dogSpend.scratchedList.includes(qid)) return;
-      pushUndo(undoKey, snapPeriod(key));
+  const scratchedList = (side) => {
+    if (!isVS) return p.dogSpend.scratchedList ?? [];
+    return (side === "player" ? p.dogSpend.player.scratchedList : p.dogSpend.house.scratchedList) ?? [];
+  };
+  const isScratchedBy = (side, qid) => scratchedList(side).includes(qid);
 
-      state.dogs = Math.max(0, (state.dogs ?? 0) - 1);
+  const scratchOpponent = (scratcherSide, qid) => {
+    const victimSide = (scratcherSide === "player") ? "house" : "player";
+    const target = p.picks[qid];
 
+    // Spend dog
+    setDogs(scratcherSide, Math.max(0, dogsCount(scratcherSide) - 1));
+
+    // Record scratch
+    if (!isVS) {
       p.dogSpend.used = true;
-      p.dogSpend.scratchedList.push(qid);
-
-      const target = p.picks[qid];
+      if (!p.dogSpend.scratchedList.includes(qid)) p.dogSpend.scratchedList.push(qid);
+      // Victim is House in HOUSE mode
       target.lockedHouse = true;
       target.house = null;
+    } else {
+      p.dogSpend[scratcherSide].used = true;
+      if (!p.dogSpend[scratcherSide].scratchedList.includes(qid)) p.dogSpend[scratcherSide].scratchedList.push(qid);
 
-      render();
-    };
+      // Lock the victim side
+      if (victimSide === "player") {
+        target.lockedPlayer = true;
+        target.player = null;
+      } else {
+        target.lockedHouse = true;
+        target.house = null;
+      }
+    }
+  };
 
-    if (b1) b1.onclick = () => doScratch("q1_goal");
-    if (b2) b2.onclick = () => doScratch("q2_penalty");
-    if (b3) b3.onclick = () => doScratch("q3_both5sog");
+  const canScratchSide = (side) =>
+    (isP2 || isP3) &&
+    dogsCount(side) > 0 &&
+    !p.lockedResults &&
+    !anyLockedBySide(side) &&
+    !(isVS ? p.dogSpend[side].voided : p.dogSpend.voided) &&
+    scratchedList(side).length < maxScratches;
+
+  // Wire scratch buttons
+  if (isP2 || isP3) {
+    // HOUSE/legacy: player scratches house
+    if (!isVS && canScratchSide("player")) {
+      const doScratch = (qid) => {
+        if (p.dogSpend.scratchedList.includes(qid)) return;
+        pushUndo(undoKey, snapPeriod(key));
+        scratchOpponent("player", qid);
+        render();
+      };
+      const b1 = document.getElementById("scratch_q1");
+      const b2 = document.getElementById("scratch_q2");
+      const b3 = document.getElementById("scratch_q3");
+      if (b1) b1.onclick = () => doScratch("q1_goal");
+      if (b2) b2.onclick = () => doScratch("q2_penalty");
+      if (b3) b3.onclick = () => doScratch("q3_both5sog");
+    }
+
+    // VS: both sides can scratch
+    if (isVS) {
+      const wireScratchSet = (side) => {
+        if (!canScratchSide(side)) return;
+        const prefix = `${side}_`;
+        const doScratch = (qid) => {
+          if (isScratchedBy(side, qid)) return;
+          pushUndo(undoKey, snapPeriod(key));
+          scratchOpponent(side, qid);
+          render();
+        };
+        const b1 = document.getElementById(`scratch_${prefix}q1`);
+        const b2 = document.getElementById(`scratch_${prefix}q2`);
+        const b3 = document.getElementById(`scratch_${prefix}q3`);
+        if (b1) b1.onclick = () => doScratch("q1_goal");
+        if (b2) b2.onclick = () => doScratch("q2_penalty");
+        if (b3) b3.onclick = () => doScratch("q3_both5sog");
+      };
+      wireScratchSet("player");
+      wireScratchSet("house");
+    }
   }
 
-  const isScratchedLocal = (qid) => p.dogSpend.scratchedList.includes(qid);
+  // P3: void leftover dogs after each side locks their first pick
+  const voidDogsIfP3Started = (side) => {
+    if (!isP3) return;
+    if (!isVS) {
+      if (p.dogSpend.voided) return;
+      if (anyLockedBySide("player")) {
+        state.dogs = 0;
+        p.dogSpend.voided = true;
+      }
+      return;
+    }
+    if (p.dogSpend[side].voided) return;
+    if (anyLockedBySide(side)) {
+      setDogs(side, 0);
+      p.dogSpend[side].voided = true;
+    }
+  };
 
+  // Wire yes/no picks (player/house)
   const wirePickYesNo = (pickState, prefix, qid) => {
+    // Player 1
     const pYes = document.getElementById(`${prefix}_player_Yes`);
-    const pNo = document.getElementById(`${prefix}_player_No`);
-
+    const pNo  = document.getElementById(`${prefix}_player_No`);
     if (pYes) pYes.onclick = () => {
       pushUndo(undoKey, snapPeriod(key));
       pickState.player = "Yes";
       pickState.lockedPlayer = true;
-      voidDogsIfP3Started();
+      voidDogsIfP3Started("player");
       render();
     };
     if (pNo) pNo.onclick = () => {
       pushUndo(undoKey, snapPeriod(key));
       pickState.player = "No";
       pickState.lockedPlayer = true;
-      voidDogsIfP3Started();
+      voidDogsIfP3Started("player");
       render();
     };
 
-    if ((isP2 || isP3) && isScratchedLocal(qid)) return;
-
+    // Player 2 / House
     const hYes = document.getElementById(`${prefix}_house_Yes`);
-    const hNo = document.getElementById(`${prefix}_house_No`);
-    if (hYes) hYes.onclick = () => { pushUndo(undoKey, snapPeriod(key)); pickState.house = "Yes"; pickState.lockedHouse = true; render(); };
-    if (hNo) hNo.onclick = () => { pushUndo(undoKey, snapPeriod(key)); pickState.house = "No"; pickState.lockedHouse = true; render(); };
+    const hNo  = document.getElementById(`${prefix}_house_No`);
+    if (hYes) hYes.onclick = () => {
+      pushUndo(undoKey, snapPeriod(key));
+      pickState.house = "Yes";
+      pickState.lockedHouse = true;
+      voidDogsIfP3Started("house");
+      render();
+    };
+    if (hNo) hNo.onclick = () => {
+      pushUndo(undoKey, snapPeriod(key));
+      pickState.house = "No";
+      pickState.lockedHouse = true;
+      voidDogsIfP3Started("house");
+      render();
+    };
   };
 
   wirePickYesNo(picks.q1_goal, `${key}q1`, "q1_goal");
@@ -1739,8 +2003,8 @@ function wirePeriodButtons(key) {
   // Results checkboxes mutual exclusive
   const goalY = document.getElementById(`${key}_r_goal_y`);
   const goalN = document.getElementById(`${key}_r_goal_n`);
-  const penY = document.getElementById(`${key}_r_pen_y`);
-  const penN = document.getElementById(`${key}_r_pen_n`);
+  const penY  = document.getElementById(`${key}_r_pen_y`);
+  const penN  = document.getElementById(`${key}_r_pen_n`);
 
   if (goalY && goalN) {
     goalY.onchange = () => {
@@ -1777,6 +2041,7 @@ function wirePeriodButtons(key) {
   if (sogAway) sogAway.oninput = () => { pushUndo(undoKey, snapPeriod(key)); const v = parseInt(sogAway.value, 10); r.endSogAway = Number.isNaN(v) ? null : v; saveState(); };
   if (sogHome) sogHome.oninput = () => { pushUndo(undoKey, snapPeriod(key)); const v = parseInt(sogHome.value, 10); r.endSogHome = Number.isNaN(v) ? null : v; saveState(); };
 
+  // Lock results
   const lockBtn = document.getElementById(`${key}_lockResults`);
   if (lockBtn) {
     lockBtn.onclick = () => {
@@ -1806,43 +2071,76 @@ function wirePeriodButtons(key) {
       const correct = {
         q1: {
           player: (picks.q1_goal.player === r.goal),
-          house: ((isP2 || isP3) && isScratchedLocal("q1_goal")) ? false : (picks.q1_goal.house === r.goal)
+          house: (picks.q1_goal.house === r.goal)
         },
         q2: {
           player: (picks.q2_penalty.player === r.penalty),
-          house: ((isP2 || isP3) && isScratchedLocal("q2_penalty")) ? false : (picks.q2_penalty.house === r.penalty)
+          house: (picks.q2_penalty.house === r.penalty)
         },
         q3: {
           truth: q3Truth,
           player: (picks.q3_both5sog.player === q3Truth),
-          house: ((isP2 || isP3) && isScratchedLocal("q3_both5sog")) ? false : (picks.q3_both5sog.house === q3Truth)
+          house: (picks.q3_both5sog.house === q3Truth)
         }
       };
 
+      // Apply scratches: a scratched side cannot be correct
+      if (!isVS) {
+        const list = p.dogSpend.scratchedList ?? [];
+        if (list.includes("q1_goal")) correct.q1.house = false;
+        if (list.includes("q2_penalty")) correct.q2.house = false;
+        if (list.includes("q3_both5sog")) correct.q3.house = false;
+      } else {
+        const pList = p.dogSpend.player.scratchedList ?? [];
+        const hList = p.dogSpend.house.scratchedList ?? [];
+        // Player scratched House => House disabled
+        if (pList.includes("q1_goal")) correct.q1.house = false;
+        if (pList.includes("q2_penalty")) correct.q2.house = false;
+        if (pList.includes("q3_both5sog")) correct.q3.house = false;
+        // House scratched Player => Player disabled
+        if (hList.includes("q1_goal")) correct.q1.player = false;
+        if (hList.includes("q2_penalty")) correct.q2.player = false;
+        if (hList.includes("q3_both5sog")) correct.q3.player = false;
+      }
+
       const playerCorrect = (correct.q1.player ? 1 : 0) + (correct.q2.player ? 1 : 0) + (correct.q3.player ? 1 : 0);
-      const houseCorrect = (correct.q1.house ? 1 : 0) + (correct.q2.house ? 1 : 0) + (correct.q3.house ? 1 : 0);
+      const houseCorrect  = (correct.q1.house ? 1 : 0) + (correct.q2.house ? 1 : 0) + (correct.q3.house ? 1 : 0);
 
       let periodWinner = "none";
       if (playerCorrect >= 2 && houseCorrect < 2) periodWinner = "player";
       else if (houseCorrect >= 2 && playerCorrect < 2) periodWinner = "house";
 
+      // Award points
       state.score.player += playerCorrect;
       state.score.house += houseCorrect;
 
+      // DOG effects:
+      // - HOUSE mode: winner adds/removes from Player 1 pool (legacy)
+      // - VS mode: each winner gains +1 to their own pool
       if (!isP3) {
-        if (periodWinner === "player") state.dogs = (state.dogs ?? 0) + 1;
-        else if (periodWinner === "house") state.dogs = Math.max(0, (state.dogs ?? 0) - 1);
+        if (!isVS) {
+          if (periodWinner === "player") state.dogs = (state.dogs ?? 0) + 1;
+          else if (periodWinner === "house") state.dogs = Math.max(0, (state.dogs ?? 0) - 1);
+        } else {
+          if (periodWinner === "player") state.dogs.player = (state.dogs.player ?? 0) + 1;
+          else if (periodWinner === "house") state.dogs.house = (state.dogs.house ?? 0) + 1;
+        }
       } else {
-        state.dogs = 0;
+        // End of P3: leftover dogs should be 0 no matter what
+        if (!isVS) state.dogs = 0;
+        else { state.dogs.player = 0; state.dogs.house = 0; }
 
-        if (periodWinner === "player") {
+        // Good Boy earned by the winner in VS; Player only in HOUSE
+        if (periodWinner === "player" || (isVS && periodWinner === "house")) {
           state.goodBoy.earned = true;
+          state.goodBoy.owner = (periodWinner === "house") ? "house" : "player";
           state.goodBoy.resolved = false;
           state.goodBoy.roll = null;
           state.goodBoy.target = null;
           state.goodBoy.housePointRemoved = false;
         } else {
           state.goodBoy.earned = false;
+          state.goodBoy.owner = null;
           state.goodBoy.resolved = false;
           state.goodBoy.roll = null;
           state.goodBoy.target = null;
@@ -1853,6 +2151,7 @@ function wirePeriodButtons(key) {
       p.lockedResults = true;
       p.computed = { q3Truth, correct, playerCorrect, houseCorrect, periodWinner };
 
+      // Carry SOG forward
       state.sog.end.away = endAway;
       state.sog.end.home = endHome;
       state.sog.start.away = endAway;
@@ -1869,6 +2168,10 @@ function wirePeriodButtons(key) {
 function wireGoodBoyButtons() {
   const gb = state.goodBoy;
   if (!gb.earned) return;
+
+  const isVS = state.mode === "VS";
+  const owner = (isVS && gb.owner === "house") ? "house" : "player";
+  const opponent = owner === "player" ? "house" : "player";
 
   const doResolve = (roll) => {
     pushUndo("goodboy", snapGoodBoy());
@@ -1888,11 +2191,14 @@ function wireGoodBoyButtons() {
     gb.target = target.label;
 
     const periodObj = state.periods[target.period];
-    const houseWasCorrect = !!periodObj?.computed?.correct?.[target.q]?.house;
+
+    // The opponent loses a point ONLY if they were correct on the target.
+    const opponentWasCorrect = !!periodObj?.computed?.correct?.[target.q]?.[opponent];
 
     gb.housePointRemoved = false;
-    if (houseWasCorrect) {
-      state.score.house = Math.max(0, (state.score.house ?? 0) - 1);
+    if (opponentWasCorrect) {
+      if (opponent === "house") state.score.house = Math.max(0, (state.score.house ?? 0) - 1);
+      else state.score.player = Math.max(0, (state.score.player ?? 0) - 1);
       gb.housePointRemoved = true;
     }
 
@@ -1903,10 +2209,8 @@ function wireGoodBoyButtons() {
   const rollBtn = document.getElementById("gbRoll");
   if (rollBtn) rollBtn.onclick = () => {
     if (gb.resolved) return;
-
     const ok = confirm("Roll 🎲 for Good Boy?");
     if (!ok) return;
-
     const roll = Math.floor(Math.random() * 6) + 1;
     doResolve(roll);
   };
@@ -1919,4 +2223,7 @@ function wireGoodBoyButtons() {
     if (!v || v < 1 || v > 6) { alert("Enter a number 1–6."); return; }
     doResolve(v);
   };
+
+  const backToP3 = document.getElementById("backToP3");
+  if (backToP3) backToP3.onclick = () => { state.screen = "p3"; render(); };
 }
