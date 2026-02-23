@@ -864,7 +864,8 @@ function renderOT() {
                <button id="ot_truthYes">Yes (ended in OT)</button>
                <button id="ot_truthNo">No (went to SO)</button>
              </div>
-             <button id="ot_lockTruth">Lock OT Outcome</button>`
+             <div style="opacity:0.8; margin-top:6px;">Selected: <strong>${ot.truth ?? "—"}</strong></div>
+                          <button id="ot_lockTruth">Lock OT Outcome</button>`
       }
 
       ${
@@ -952,7 +953,8 @@ function renderSO() {
                <button id="so_truthYes">Yes (longer than 3 rounds)</button>
                <button id="so_truthNo">No (3 rounds or fewer)</button>
              </div>
-             <button id="so_lockTruth">Lock Shootout Outcome</button>`
+             <div style="opacity:0.8; margin-top:6px;">Selected: <strong>${so.truth ?? "—"}</strong></div>
+                          <button id="so_lockTruth">Lock Shootout Outcome</button>`
       }
 
       ${
