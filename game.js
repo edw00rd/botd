@@ -4,8 +4,8 @@
 // - Void leftover DOGs the moment Period 3 starts (first Player pick locked in P3)
 // - Good Boy: roll targets P1/P2 Q1-3; if HOUSE was correct -> HOUSE loses 1 point; else no effect
 // Notes:
-// - Pre-game Q1/Q2 scoring still pending (needs final outcome).
-// - OT/SO still stubbed after Good Boy.
+// - Pre-game Q1/Q2 scoring occurs after regulation is locked (or after OT/SO if regulation tied).
+// - OT/SO are implemented (1 pt each) and final winner selection awards remaining points.
 
 const state = JSON.parse(localStorage.getItem("botd_state"));
 const gameEl = document.getElementById("game");
@@ -24,7 +24,7 @@ if (!state) {
   state.live = !!state.live;
 
   // Routing
-  state.screen = state.screen ?? "pre_q1"; // pre_q1 -> pre_q2 -> p1 -> p2 -> p3 -> goodboy? -> regulation -> ot_stub (later)
+  state.screen = state.screen ?? "pre_q1"; // pre_q1 -> pre_q2 -> p1 -> p2 -> p3 -> goodboy? -> regulation -> ot -> so -> postgame
 
   // Commit flags (lock-in points)
   state.committed = state.committed ?? {
@@ -53,13 +53,15 @@ if (!state) {
   state.periods.p3 = state.periods.p3 ?? mkPeriodState(3);
 
   // Ensure P3 has the new latch fields even for old saves
-  state.periods.p3.dogSpend = state.periods.p3.dogSpend ?? { used: false, scratched: null };
+  state.periods.p3.dogSpend = state.periods.p3.dogSpend ?? { used: false, scratched: null, voided: false };
   state.periods.p3.dogSpend.voided = !!state.periods.p3.dogSpend.voided;
   state.periods.p3.dogSpend.scratchedList = state.periods.p3.dogSpend.scratchedList ?? [];
 
   // Ensure P2 has list too (optional, but keeps code uniform)
   state.periods.p2.dogSpend = state.periods.p2.dogSpend ?? { used: false, scratched: null };
-  state.periods.p2.dogSpend.scratchedList = state.periods.p2.dogSpend.scratchedList ?? (state.periods.p2.dogSpend.scratched ? [state.periods.p2.dogSpend.scratched] : []);
+  state.periods.p2.dogSpend.scratchedList =
+    state.periods.p2.dogSpend.scratchedList ??
+    (state.periods.p2.dogSpend.scratched ? [state.periods.p2.dogSpend.scratched] : []);
 
   // Good Boy state
   state.goodBoy = state.goodBoy ?? {
@@ -175,6 +177,9 @@ function commitStage(stageKey) {
   saveState();
 }
 
+/* -------------------------
+   Main render router
+-------------------------- */
 function render() {
   const away = state.away;
   const home = state.home;
@@ -212,7 +217,6 @@ function render() {
   else if (state.screen === "regulation") screenHTML = renderRegulation();
   else if (state.screen === "ot") screenHTML = renderOT();
   else if (state.screen === "so") screenHTML = renderSO();
-  else if (state.screen === "postgame_stub") screenHTML = renderPostgameStub(); // (can delete later)
   else if (state.screen === "postgame") screenHTML = renderPostgameSummary();
   else screenHTML = `<div style="margin-top:16px;border:1px solid #ccc;padding:12px;max-width:860px;">Unknown screen: ${state.screen}</div>`;
 
@@ -221,6 +225,9 @@ function render() {
   saveState();
 }
 
+/* -------------------------
+   UI helpers
+-------------------------- */
 function renderSideBySideQuestion({ title, questionText, leftName, rightName, leftSectionHTML, rightSectionHTML, backHTML = "", continueHTML = "" }) {
   return `
     <div style="margin-top:16px; border:1px solid #ccc; padding:12px; max-width:860px;">
@@ -283,26 +290,16 @@ function renderDogsDeltaLine(periodKey) {
   const n = p.n;
   const scratches = countScratches(periodKey);
 
-  // Was a DOG spent? (scratches are the spending mechanism)
   const spentTxt = scratches > 0
     ? `Spent: <strong>${"🐶".repeat(scratches)}</strong> (scratches: ${scratches})`
     : `Spent: <strong>—</strong>`;
 
-  if (n === 1) {
-    // P1: no scratches allowed, but dogs can be earned/lost
+  if (n === 1 || n === 2) {
     const w = p.computed.periodWinner;
     const delta = (w === "player") ? "+1 🐶" : (w === "house") ? "−1 🐶" : "±0 🐶";
     return `<div style="margin-top:8px; opacity:0.9;"><strong>DOGs:</strong> ${delta} &nbsp; | &nbsp; ${spentTxt}</div>`;
   }
 
-  if (n === 2) {
-    // P2: scratches allowed (max 1), dogs can be earned/lost
-    const w = p.computed.periodWinner;
-    const delta = (w === "player") ? "+1 🐶" : (w === "house") ? "−1 🐶" : "±0 🐶";
-    return `<div style="margin-top:8px; opacity:0.9;"><strong>DOGs:</strong> ${delta} &nbsp; | &nbsp; ${spentTxt}</div>`;
-  }
-
-  // P3: dogs are voided (go to 0 at first lock and also forced to 0 at end)
   const voided = !!p.dogSpend?.voided;
   const voidTxt = voided
     ? "Leftover DOGs: <strong>VOIDED</strong> (first pick locked)"
@@ -326,11 +323,9 @@ function renderDogsLinePostgame(periodKey) {
   const scratches = countScratches(periodKey);
   const spentTxt = scratches > 0 ? `${"🐶".repeat(scratches)} (scratches: ${scratches})` : "—";
 
-  // Period 1/2: earn/lose based on periodWinner
   if (p.n === 1 || p.n === 2) {
     const w = p.computed.periodWinner;
     const delta = (w === "player") ? "+1 🐶" : (w === "house") ? "−1 🐶" : "±0 🐶";
-
     return `
       <div style="margin-top:8px; opacity:0.9;">
         <strong>DOGs:</strong> ${delta} &nbsp; | &nbsp; Spent: <strong>${spentTxt}</strong>
@@ -338,7 +333,6 @@ function renderDogsLinePostgame(periodKey) {
     `;
   }
 
-  // Period 3: dogs void + Good Boy note
   const voided = !!p.dogSpend?.voided;
   const voidTxt = voided ? "VOIDED (first pick locked)" : "—";
   const gbTxt = (p.computed.periodWinner === "player") ? "EARNED ✅" : "—";
@@ -736,16 +730,9 @@ function renderGoodBoy() {
   `;
 }
 
-function renderPostgameStub() {
-  return `
-    <div style="margin-top:16px; border:1px solid #ccc; padding:12px; max-width:860px;">
-      <h3 style="margin-top:0;">Next: OT / Shootout (later)</h3>
-      <p>Core game is complete through Period 3 + Good Boy.</p>
-      <button id="backToGoodBoy">Back</button>
-    </div>
-  `;
-}
-
+/* -------------------------
+   Regulation / OT / SO
+-------------------------- */
 function ensureRegulationState() {
   state.regulation = state.regulation ?? {
     awayGoals: null,
@@ -754,30 +741,26 @@ function ensureRegulationState() {
     locked: false
   };
 
-  // Final outcome (needed if regulation is tied)
   state.final = state.final ?? {
     winner: null,   // "Away" | "Home"
     endedIn: null,  // "REG" | "OT" | "SO"
     soLongerThan3: null // "Yes" | "No" (only if endedIn === "SO")
   };
 
-  // OT mini-round
   state.ot = state.ot ?? {
     picks: { player: null, house: null, lockedPlayer: false, lockedHouse: false },
-    truth: null,      // "Yes" | "No"
+    truth: null,
     lockedTruth: false
   };
 
-  // SO mini-round
   state.so = state.so ?? {
     picks: { player: null, house: null, lockedPlayer: false, lockedHouse: false },
-    truth: null,      // "Yes" | "No"
+    truth: null,
     lockedTruth: false
   };
 
-  // “award once” latches
   state.pregameAwarded = state.pregameAwarded ?? { q1: false, q2: false };
-  state.otsoAwarded = state.otsoAwarded ?? { ot: false, so: false, final: false };
+  state.otsoAwarded = state.otsoAwarded ?? { ot: false, so: false };
 }
 
 function renderRegulation() {
@@ -1005,6 +988,9 @@ function renderSO() {
   `;
 }
 
+/* -------------------------
+   Postgame rendering helpers
+-------------------------- */
 function yn(v) {
   if (v === "Yes" || v === "No") return v;
   return v ?? "—";
@@ -1017,7 +1003,6 @@ function pickTextPreQ1(v) {
 function mark(correct) {
   return correct ? "✅" : "❌";
 }
-function safeBool(x) { return !!x; }
 
 function renderTwoColRow({ leftLabel, leftVal, leftMark, rightVal, rightMark }) {
   return `
@@ -1072,7 +1057,6 @@ function renderPeriodSection(periodKey, title) {
 
   const scrLine = (qidScr) => qidScr ? ` <span style="font-size:0.9rem; opacity:0.75;">(SCRATCHED 🐶)</span>` : "";
 
-  // What they picked
   const picks = p.picks;
 
   const p1 = yn(picks.q1_goal.player);
@@ -1124,9 +1108,8 @@ function renderPeriodSection(periodKey, title) {
       <div style="margin-top:10px;">
         <strong>Period ${p.n} winner:</strong> ${winnerText}
       </div>
-      
-        ${renderDogsLinePostgame(periodKey)}
-        
+
+      ${renderDogsLinePostgame(periodKey)}
     </div>
   `;
 }
@@ -1134,7 +1117,6 @@ function renderPeriodSection(periodKey, title) {
 function renderPostgameSummary() {
   ensureRegulationState();
 
-  // Determine winner label (we prefer final.winner if present, else regulation winner if not tied)
   let winner = state.final?.winner;
   if (!winner && state.regulation?.locked) {
     if (state.regulation.awayGoals > state.regulation.homeGoals) winner = "Away";
@@ -1154,12 +1136,11 @@ function renderPostgameSummary() {
   const preQ1 = state.pre?.q1;
   const preQ2 = state.pre?.q2;
 
-  // Pregame correctness (only scoreable once winner known)
-  const preQ1Truth = winner; // "Away"|"Home"|null
+  const preQ1Truth = winner;
   const preQ1PlayerOk = preQ1Truth ? (preQ1?.player === preQ1Truth) : false;
   const preQ1HouseOk  = preQ1Truth ? (preQ1?.house === preQ1Truth) : false;
 
-  const ppTruth = state.regulation?.ppGoal; // "Yes"|"No"|null
+  const ppTruth = state.regulation?.ppGoal;
   const preQ2PlayerOk = (ppTruth === "Yes" || ppTruth === "No") ? (preQ2?.player === ppTruth) : false;
   const preQ2HouseOk  = (ppTruth === "Yes" || ppTruth === "No") ? (preQ2?.house === ppTruth) : false;
 
@@ -1167,7 +1148,6 @@ function renderPostgameSummary() {
     ? state.final.endedIn
     : (state.regulation?.locked && state.regulation.awayGoals !== state.regulation.homeGoals ? "REG" : null);
 
-  // OT / SO truth blocks (if played)
   const otPlayed = state.ot?.lockedTruth;
   const soPlayed = state.so?.lockedTruth;
 
@@ -1272,17 +1252,18 @@ function renderPostgameSummary() {
   `;
 }
 
+/* -------------------------
+   Awarding logic
+-------------------------- */
 function awardPregamePointsFromRegulation() {
   ensureRegulationState();
   const reg = state.regulation;
   if (!reg.locked) return;
 
-  // If tied, do nothing here (OT later)
   if (reg.awayGoals === reg.homeGoals) return;
 
   const winner = reg.awayGoals > reg.homeGoals ? "Away" : "Home";
 
-  // Pre Q1
   if (!state.pregameAwarded.q1) {
     const q1 = state.pre?.q1;
     if (q1?.player === winner) state.score.player += 1;
@@ -1290,14 +1271,16 @@ function awardPregamePointsFromRegulation() {
     state.pregameAwarded.q1 = true;
   }
 
-  // Pre Q2 (PP goal yes/no)
   if (!state.pregameAwarded.q2) {
     const q2 = state.pre?.q2;
-    const truth = reg.ppGoal; // "Yes" | "No"
+    const truth = reg.ppGoal;
     if (q2?.player === truth) state.score.player += 1;
     if (q2?.house === truth) state.score.house += 1;
     state.pregameAwarded.q2 = true;
   }
+
+  state.final.winner = winner;
+  state.final.endedIn = "REG";
 
   saveState();
 }
@@ -1305,28 +1288,24 @@ function awardPregamePointsFromRegulation() {
 function finalizeTieGameAndAwardAll() {
   ensureRegulationState();
 
-  // Must have final.winner set
   if (!state.final?.winner) return;
 
-  // Award OT question if not yet awarded
   if (!state.otsoAwarded.ot && state.ot?.lockedTruth) {
-    const truth = state.ot.truth; // "Yes" | "No"
+    const truth = state.ot.truth;
     const p = state.ot.picks;
     if (p.player === truth) state.score.player += 1;
     if (p.house === truth) state.score.house += 1;
     state.otsoAwarded.ot = true;
   }
 
-  // Award SO question if game ended in SO and not yet awarded
   if (state.final.endedIn === "SO" && !state.otsoAwarded.so && state.so?.lockedTruth) {
-    const truth = state.so.truth; // "Yes" | "No"
+    const truth = state.so.truth;
     const p = state.so.picks;
     if (p.player === truth) state.score.player += 1;
     if (p.house === truth) state.score.house += 1;
     state.otsoAwarded.so = true;
   }
 
-  // Award pregame Q1/Q2 now that we know final winner + PP goal
   if (!state.pregameAwarded.q1) {
     const q1 = state.pre?.q1;
     if (q1?.player === state.final.winner) state.score.player += 1;
@@ -1336,7 +1315,7 @@ function finalizeTieGameAndAwardAll() {
 
   if (!state.pregameAwarded.q2) {
     const q2 = state.pre?.q2;
-    const truth = state.regulation?.ppGoal; // "Yes" | "No"
+    const truth = state.regulation?.ppGoal;
     if (q2?.player === truth) state.score.player += 1;
     if (q2?.house === truth) state.score.house += 1;
     state.pregameAwarded.q2 = true;
@@ -1362,13 +1341,13 @@ function wireHandlers() {
   if (state.screen === "ot") wireOTButtons();
   if (state.screen === "so") wireSOButtons();
   if (state.screen === "postgame") {
-  const restart = document.getElementById("restartGame");
-  if (restart) restart.onclick = () => {
+    const restart = document.getElementById("restartGame");
+    if (restart) restart.onclick = () => {
       localStorage.removeItem("botd_state");
-      window.location.href = "index.html"; // or wherever your setup screen is
+      window.location.href = "index.html";
     };
   }
-  
+
   // Nav
   const toQ2 = document.getElementById("toQ2");
   if (toQ2) toQ2.onclick = () => { state.screen = "pre_q2"; render(); };
@@ -1389,7 +1368,6 @@ function wireHandlers() {
   if (toP3) toP3.onclick = () => {
     commitStage("p2");
 
-    // Ensure P3 spending is available BEFORE first pick
     const p3 = state.periods.p3;
     p3.dogSpend = p3.dogSpend ?? { used: false, scratched: null, scratchedList: [], voided: false };
     p3.dogSpend.voided = false;
@@ -1407,9 +1385,6 @@ function wireHandlers() {
 
   const toPostgame = document.getElementById("toPostgame");
   if (toPostgame) toPostgame.onclick = () => { state.screen = "regulation"; render(); };
-
-  const backToGoodBoy = document.getElementById("backToGoodBoy");
-  if (backToGoodBoy) backToGoodBoy.onclick = () => { state.screen = "goodboy"; render(); };
 
   const backToP3 = document.getElementById("backToP3");
   if (backToP3) backToP3.onclick = () => { state.screen = "p3"; render(); };
@@ -1461,7 +1436,6 @@ function wireRegulationButtons() {
   const back = document.getElementById("backFromRegulation");
   if (back) {
     back.onclick = () => {
-      // go back to GoodBoy if it exists, otherwise back to P3
       state.screen = state.goodBoy?.earned ? "goodboy" : "p3";
       render();
     };
@@ -1490,6 +1464,16 @@ function wireRegulationButtons() {
       reg.awayGoals = a;
       reg.homeGoals = h;
       reg.locked = true;
+
+      // If not tied, we can set final winner right now (REG)
+      if (a !== h) {
+        state.final.winner = a > h ? "Away" : "Home";
+        state.final.endedIn = "REG";
+      } else {
+        state.final.winner = null;
+        state.final.endedIn = null;
+      }
+
       render();
     };
   }
@@ -1501,7 +1485,6 @@ function wireRegulationButtons() {
   if (award) {
     award.onclick = () => {
       awardPregamePointsFromRegulation();
-      // for now just show postgame stub
       state.screen = "postgame";
       render();
     };
@@ -1540,7 +1523,6 @@ function wireOTButtons() {
   const toSO = document.getElementById("toSO");
   if (toSO) toSO.onclick = () => { state.screen = "so"; render(); };
 
-  // Final winner buttons (only when ended in OT)
   const wA = document.getElementById("finalWinnerAway");
   const wH = document.getElementById("finalWinnerHome");
   if (wA) wA.onclick = () => { state.final.winner = "Away"; state.final.endedIn = "OT"; render(); };
@@ -1583,7 +1565,6 @@ function wireSOButtons() {
     render();
   };
 
-  // Final winner buttons
   const wA = document.getElementById("finalWinnerAwaySO");
   const wH = document.getElementById("finalWinnerHomeSO");
   if (wA) wA.onclick = () => { state.final.winner = "Away"; state.final.endedIn = "SO"; state.final.soLongerThan3 = so.truth; render(); };
@@ -1595,11 +1576,6 @@ function wireSOButtons() {
     state.screen = "postgame";
     render();
   };
-}
-
-function wireOTStubButtons() {
-  const back = document.getElementById("backToRegulation");
-  if (back) back.onclick = () => { state.screen = "regulation"; render(); };
 }
 
 function wirePreQ1Buttons() {
@@ -1642,7 +1618,6 @@ function wirePeriodButtons(key) {
   const isP3 = key === "p3";
   const undoKey = key;
 
-  // Normalize list
   p.dogSpend.scratchedList = p.dogSpend.scratchedList ?? (p.dogSpend.scratched ? [p.dogSpend.scratched] : []);
 
   const anyPlayerLocked = () =>
@@ -1658,7 +1633,6 @@ function wirePeriodButtons(key) {
     }
   };
 
-  // DOG spending at start of P2 and P3
   const maxScratches = isP3 ? 2 : (isP2 ? 1 : 0);
 
   const canSpendDog =
@@ -1683,7 +1657,6 @@ function wirePeriodButtons(key) {
       p.dogSpend.used = true;
       p.dogSpend.scratchedList.push(qid);
 
-      // House cannot answer this q
       const target = p.picks[qid];
       target.lockedHouse = true;
       target.house = null;
@@ -1696,9 +1669,8 @@ function wirePeriodButtons(key) {
     if (b3) b3.onclick = () => doScratch("q3_both5sog");
   }
 
-  const isScratched = (qid) => p.dogSpend.scratchedList.includes(qid);
+  const isScratchedLocal = (qid) => p.dogSpend.scratchedList.includes(qid);
 
-  // Wire yes/no picks
   const wirePickYesNo = (pickState, prefix, qid) => {
     const pYes = document.getElementById(`${prefix}_player_Yes`);
     const pNo = document.getElementById(`${prefix}_player_No`);
@@ -1718,7 +1690,7 @@ function wirePeriodButtons(key) {
       render();
     };
 
-    if ((isP2 || isP3) && isScratched(qid)) return;
+    if ((isP2 || isP3) && isScratchedLocal(qid)) return;
 
     const hYes = document.getElementById(`${prefix}_house_Yes`);
     const hNo = document.getElementById(`${prefix}_house_No`);
@@ -1771,7 +1743,6 @@ function wirePeriodButtons(key) {
   if (sogAway) sogAway.oninput = () => { pushUndo(undoKey, snapPeriod(key)); const v = parseInt(sogAway.value, 10); r.endSogAway = Number.isNaN(v) ? null : v; saveState(); };
   if (sogHome) sogHome.oninput = () => { pushUndo(undoKey, snapPeriod(key)); const v = parseInt(sogHome.value, 10); r.endSogHome = Number.isNaN(v) ? null : v; saveState(); };
 
-  // Lock results
   const lockBtn = document.getElementById(`${key}_lockResults`);
   if (lockBtn) {
     lockBtn.onclick = () => {
@@ -1801,16 +1772,16 @@ function wirePeriodButtons(key) {
       const correct = {
         q1: {
           player: (picks.q1_goal.player === r.goal),
-          house: ((isP2 || isP3) && isScratched("q1_goal")) ? false : (picks.q1_goal.house === r.goal)
+          house: ((isP2 || isP3) && isScratchedLocal("q1_goal")) ? false : (picks.q1_goal.house === r.goal)
         },
         q2: {
           player: (picks.q2_penalty.player === r.penalty),
-          house: ((isP2 || isP3) && isScratched("q2_penalty")) ? false : (picks.q2_penalty.house === r.penalty)
+          house: ((isP2 || isP3) && isScratchedLocal("q2_penalty")) ? false : (picks.q2_penalty.house === r.penalty)
         },
         q3: {
           truth: q3Truth,
           player: (picks.q3_both5sog.player === q3Truth),
-          house: ((isP2 || isP3) && isScratched("q3_both5sog")) ? false : (picks.q3_both5sog.house === q3Truth)
+          house: ((isP2 || isP3) && isScratchedLocal("q3_both5sog")) ? false : (picks.q3_both5sog.house === q3Truth)
         }
       };
 
@@ -1821,20 +1792,15 @@ function wirePeriodButtons(key) {
       if (playerCorrect >= 2 && houseCorrect < 2) periodWinner = "player";
       else if (houseCorrect >= 2 && playerCorrect < 2) periodWinner = "house";
 
-      // Award points
       state.score.player += playerCorrect;
       state.score.house += houseCorrect;
 
-      // DOG effects:
-      // - P1/P2 only (P3 normal dogs are NOT kept)
       if (!isP3) {
         if (periodWinner === "player") state.dogs = (state.dogs ?? 0) + 1;
         else if (periodWinner === "house") state.dogs = Math.max(0, (state.dogs ?? 0) - 1);
       } else {
-        // End of P3: leftover dogs should be 0 no matter what
         state.dogs = 0;
 
-        // Good Boy earned only if player wins P3
         if (periodWinner === "player") {
           state.goodBoy.earned = true;
           state.goodBoy.resolved = false;
@@ -1853,7 +1819,6 @@ function wirePeriodButtons(key) {
       p.lockedResults = true;
       p.computed = { q3Truth, correct, playerCorrect, houseCorrect, periodWinner };
 
-      // Carry SOG forward
       state.sog.end.away = endAway;
       state.sog.end.home = endHome;
       state.sog.start.away = endAway;
@@ -1904,7 +1869,7 @@ function wireGoodBoyButtons() {
   const rollBtn = document.getElementById("gbRoll");
   if (rollBtn) rollBtn.onclick = () => {
     if (gb.resolved) return;
-  
+
     const ok = confirm("Roll 🎲 for Good Boy?");
     if (!ok) return;
 
@@ -1920,8 +1885,4 @@ function wireGoodBoyButtons() {
     if (!v || v < 1 || v > 6) { alert("Enter a number 1–6."); return; }
     doResolve(v);
   };
-
-  const backToP3 = document.getElementById("backToP3");
-  if (backToP3) backToP3.onclick = () => { state.screen = "p3"; render(); };
-
 }
