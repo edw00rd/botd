@@ -738,8 +738,15 @@ function ensureRegulationState() {
     awayGoals: null,
     homeGoals: null,
     ppGoal: null,   // "Yes" | "No"
-    locked: false
+    locked: false,
+    // Draft inputs (so selecting PP Yes/No doesn't wipe typed goals before lock)
+    draftAwayGoals: null,
+    draftHomeGoals: null
   };
+
+  // Back-compat: if a save predates draft fields, seed drafts from saved values
+  state.regulation.draftAwayGoals = state.regulation.draftAwayGoals ?? state.regulation.awayGoals;
+  state.regulation.draftHomeGoals = state.regulation.draftHomeGoals ?? state.regulation.homeGoals;
 
   state.final = state.final ?? {
     winner: null,   // "Away" | "Home"
@@ -787,14 +794,14 @@ function renderRegulation() {
       <div style="flex:1; min-width:220px;">
         <div style="font-weight:700; margin-bottom:4px;">${state.away} (Away)</div>
         <input id="regAwayGoals" type="number" min="0" inputmode="numeric"
-          value="${reg.awayGoals ?? ""}"
+          value="${(reg.draftAwayGoals ?? reg.awayGoals) ?? ""}"
           placeholder="Reg goals"
           style="width:100%; padding:10px; border:1px solid #ccc;" />
       </div>
       <div style="flex:1; min-width:220px;">
         <div style="font-weight:700; margin-bottom:4px;">${state.home} (Home)</div>
         <input id="regHomeGoals" type="number" min="0" inputmode="numeric"
-          value="${reg.homeGoals ?? ""}"
+          value="${(reg.draftHomeGoals ?? reg.homeGoals) ?? ""}"
           placeholder="Reg goals"
           style="width:100%; padding:10px; border:1px solid #ccc;" />
       </div>
@@ -1432,6 +1439,24 @@ function wireHandlers() {
 function wireRegulationButtons() {
   ensureRegulationState();
   const reg = state.regulation;
+  const captureDraftGoals = () => {
+    const aStr = document.getElementById("regAwayGoals")?.value ?? "";
+    const hStr = document.getElementById("regHomeGoals")?.value ?? "";
+    const a = parseInt(aStr, 10);
+    const h = parseInt(hStr, 10);
+
+    // Only store drafts when the inputs are parseable (avoid overwriting with NaN)
+    if (Number.isFinite(a) && a >= 0) reg.draftAwayGoals = a;
+    if (Number.isFinite(h) && h >= 0) reg.draftHomeGoals = h;
+    saveState();
+  };
+
+  // Persist typed goal values without needing a re-render
+  const awayInp = document.getElementById("regAwayGoals");
+  const homeInp = document.getElementById("regHomeGoals");
+  if (awayInp) awayInp.oninput = () => { captureDraftGoals(); };
+  if (homeInp) homeInp.oninput = () => { captureDraftGoals(); };
+
 
   const back = document.getElementById("backFromRegulation");
   if (back) {
@@ -1443,12 +1468,13 @@ function wireRegulationButtons() {
 
   const yes = document.getElementById("regPPYes");
   const no = document.getElementById("regPPNo");
-  if (yes) yes.onclick = () => { reg.ppGoal = "Yes"; render(); };
-  if (no) no.onclick = () => { reg.ppGoal = "No"; render(); };
+  if (yes) yes.onclick = () => { captureDraftGoals(); reg.ppGoal = "Yes"; render(); };
+  if (no) no.onclick = () => { captureDraftGoals(); reg.ppGoal = "No"; render(); };
 
   const lock = document.getElementById("lockRegulation");
   if (lock) {
     lock.onclick = () => {
+      captureDraftGoals();
       const a = parseInt(document.getElementById("regAwayGoals")?.value ?? "", 10);
       const h = parseInt(document.getElementById("regHomeGoals")?.value ?? "", 10);
 
@@ -1463,6 +1489,8 @@ function wireRegulationButtons() {
 
       reg.awayGoals = a;
       reg.homeGoals = h;
+      reg.draftAwayGoals = a;
+      reg.draftHomeGoals = h;
       reg.locked = true;
 
       // If not tied, we can set final winner right now (REG)
