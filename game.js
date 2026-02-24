@@ -1,13 +1,34 @@
-window.onerror = function(msg, src, line, col) {
-  const el = document.getElementById("game");
-  el.innerHTML = `
-    <div style="padding:12px;border:1px solid red;max-width:900px;">
-      <h3>JS Error</h3>
-      <div><strong>${msg}</strong></div>
-      <div>${src}:${line}:${col}</div>
-    </div>
-  `;
+// ---- Safe error UI (won't crash if #game doesn't exist yet)
+window.onerror = function (msg, src, line, col, err) {
+  const show = () => {
+    const el = document.getElementById("game");
+    if (!el) return; // don't crash trying to show the crash
+    el.innerHTML = `
+      <div style="padding:12px;border:1px solid red;max-width:900px;white-space:pre-wrap;">
+        <h3>JS Error</h3>
+        <div><strong>${String(msg)}</strong></div>
+        <div>${String(src)}:${line}:${col}</div>
+        ${err && err.stack ? `<div style="margin-top:10px;opacity:.85;">${String(err.stack)}</div>` : ``}
+      </div>
+    `;
+  };
+
+  if (document.readyState === "loading") setTimeout(show, 0);
+  else show();
 };
+
+// ---- Safe state load (prevents JSON.parse crash)
+function loadStateSafe() {
+  const raw = localStorage.getItem("botd_state");
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    console.warn("Bad botd_state JSON, clearing:", e);
+    localStorage.removeItem("botd_state");
+    return null;
+  }
+}
 
 // BOTD — game.js (drop-in)
 // Fixes:
@@ -18,25 +39,37 @@ window.onerror = function(msg, src, line, col) {
 // - Pre-game Q1/Q2 scoring occurs after regulation is locked (or after OT/SO if regulation tied).
 // - OT/SO are implemented (1 pt each) and final winner selection awards remaining points.
 
-const state = JSON.parse(localStorage.getItem("botd_state"));
+const state = loadStateSafe();
 const gameEl = document.getElementById("game");
 
+// Hard guard: if this is missing, nothing can render anyway
+if (!gameEl) {
+  throw new Error('Missing <div id="game"></div> in game.html');
+}
+
 if (!state) {
-  gameEl.textContent = "No game state found. Go back to setup.";
+  gameEl.innerHTML = `
+    <div style="padding:12px;border:1px solid #ccc;max-width:900px;">
+      <h3>No game state found</h3>
+      <p>Go back to setup and start a new game.</p>
+      <button onclick="window.location.href='index.html'">Back to Start</button>
+    </div>
+  `;
 } else {
   // Back-compat: older saves may have scorekeeper instead of house
   state.house = state.house ?? state.scorekeeper;
 
   // Core
   state.score = state.score ?? { player: 0, house: 0 };
-  
-// Mode: "HOUSE" (default) or "VS" (symmetric)
-state.mode = state.mode ?? "HOUSE";
 
-// VS mode uses player2 name (aliasing prior 'house' field)
-state.player2 = state.player2 ?? state.house;
+  // Mode: "HOUSE" (default) or "VS" (symmetric)
+  state.mode = state.mode ?? "HOUSE";
+
+  // VS mode uses player2 name (aliasing prior 'house' field)
+  state.player2 = state.player2 ?? state.house;
   if (state.mode === "VS") state.house = state.player2;
 
+  // ... keep the rest of your file exactly as-is after this
 // DOGs:
 // - HOUSE mode: single pool for Player 1 (legacy: number)
 // - VS mode: two pools { player: n, house: n } (house == Player 2)
