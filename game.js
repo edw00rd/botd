@@ -561,7 +561,16 @@ function renderPeriod(key, opts = {}) {
   };
 
   const isScratchedBy = (side, qid) => scratchedList(side).includes(qid);
-  const isScratchedAgainst = (side, qid) => isVS ? isScratchedBy(side === "player" ? "house" : "player", qid) : isScratchedBy("player", qid);
+  const isScratchedAgainst = (side, qid) => {
+  if (isVS) {
+    // In VS mode: you are disabled if the OTHER player scratched that question
+    const other = side === "player" ? "house" : "player";
+    return isScratchedBy(other, qid);
+  }
+
+  // In HOUSE mode: ONLY the House side is disabled by a scratch (player scratches house)
+  return side === "house" ? isScratchedBy("player", qid) : false;
+};
 
   const dogsCount = (side) => {
     if (!isVS) return state.dogs ?? 0;
