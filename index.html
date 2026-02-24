@@ -18,6 +18,18 @@
   <main class="card">
     <h2>Start</h2>
 
+    <!-- MODE -->
+    <label class="row">
+      <span>Game Mode</span>
+      <select id="mode">
+        <option value="house" selected>HOUSE (vs House)</option>
+        <option value="vs">VS (Player vs Player)</option>
+      </select>
+    </label>
+
+    <div class="divider"></div>
+
+    <!-- LEAGUE -->
     <label class="row">
       <span>League</span>
       <select id="league">
@@ -35,6 +47,7 @@
 
     <div class="divider"></div>
 
+    <!-- TEAMS -->
     <label class="row">
       <span>AWAY</span>
       <input id="away" placeholder="e.g., Kraken" />
@@ -47,13 +60,14 @@
 
     <div class="divider"></div>
 
+    <!-- PLAYERS -->
     <label class="row">
-      <span>Player</span>
-      <input id="player1" placeholder="Kid name" />
+      <span id="p1Label">Player</span>
+      <input id="player1" placeholder="Player name" />
     </label>
 
     <label class="row">
-      <span>House</span>
+      <span id="p2Label">House</span>
       <input id="house" placeholder="House / Dad / Mom" />
     </label>
 
@@ -65,7 +79,7 @@
     <button id="startBtn">START GAME</button>
 
     <p class="note">
-      Tip: We’ll add NHL/ESPN live game selection next. This first version is manual.
+      Tip: VS mode is symmetric — both players earn and spend 🐶 DOGs.
     </p>
   </main>
 
