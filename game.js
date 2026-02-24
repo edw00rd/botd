@@ -1,3 +1,5 @@
+document.getElementById("game").innerHTML = "<div style='padding:12px;border:2px solid lime'>game.js LOADED ✅</div>";
+
 // ---- Safe error UI (won't crash if #game doesn't exist yet)
 window.onerror = function (msg, src, line, col, err) {
   const show = () => {
