@@ -1,37 +1,3 @@
-document.getElementById("game").innerHTML = "<div style='padding:12px;border:2px solid lime'>game.js LOADED ✅</div>";
-
-// ---- Safe error UI (won't crash if #game doesn't exist yet)
-window.onerror = function (msg, src, line, col, err) {
-  const show = () => {
-    const el = document.getElementById("game");
-    if (!el) return; // don't crash trying to show the crash
-    el.innerHTML = `
-      <div style="padding:12px;border:1px solid red;max-width:900px;white-space:pre-wrap;">
-        <h3>JS Error</h3>
-        <div><strong>${String(msg)}</strong></div>
-        <div>${String(src)}:${line}:${col}</div>
-        ${err && err.stack ? `<div style="margin-top:10px;opacity:.85;">${String(err.stack)}</div>` : ``}
-      </div>
-    `;
-  };
-
-  if (document.readyState === "loading") setTimeout(show, 0);
-  else show();
-};
-
-// ---- Safe state load (prevents JSON.parse crash)
-function loadStateSafe() {
-  const raw = localStorage.getItem("botd_state");
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch (e) {
-    console.warn("Bad botd_state JSON, clearing:", e);
-    localStorage.removeItem("botd_state");
-    return null;
-  }
-}
-
 // BOTD — game.js (drop-in)
 // Fixes:
 // - Allow spending DOGs at start of Period 3 (and saving P1/P2 DOGs into P3)
@@ -41,37 +7,25 @@ function loadStateSafe() {
 // - Pre-game Q1/Q2 scoring occurs after regulation is locked (or after OT/SO if regulation tied).
 // - OT/SO are implemented (1 pt each) and final winner selection awards remaining points.
 
-const state = loadStateSafe();
+const state = JSON.parse(localStorage.getItem("botd_state"));
 const gameEl = document.getElementById("game");
 
-// Hard guard: if this is missing, nothing can render anyway
-if (!gameEl) {
-  throw new Error('Missing <div id="game"></div> in game.html');
-}
-
 if (!state) {
-  gameEl.innerHTML = `
-    <div style="padding:12px;border:1px solid #ccc;max-width:900px;">
-      <h3>No game state found</h3>
-      <p>Go back to setup and start a new game.</p>
-      <button onclick="window.location.href='index.html'">Back to Start</button>
-    </div>
-  `;
+  gameEl.textContent = "No game state found. Go back to setup.";
 } else {
   // Back-compat: older saves may have scorekeeper instead of house
   state.house = state.house ?? state.scorekeeper;
 
   // Core
   state.score = state.score ?? { player: 0, house: 0 };
+  
+// Mode: "HOUSE" (default) or "VS" (symmetric)
+state.mode = state.mode ?? "HOUSE";
 
-  // Mode: "HOUSE" (default) or "VS" (symmetric)
-  state.mode = state.mode ?? "HOUSE";
-
-  // VS mode uses player2 name (aliasing prior 'house' field)
-  state.player2 = state.player2 ?? state.house;
+// VS mode uses player2 name (aliasing prior 'house' field)
+state.player2 = state.player2 ?? state.house;
   if (state.mode === "VS") state.house = state.player2;
 
-  // ... keep the rest of your file exactly as-is after this
 // DOGs:
 // - HOUSE mode: single pool for Player 1 (legacy: number)
 // - VS mode: two pools { player: n, house: n } (house == Player 2)
@@ -1069,8 +1023,8 @@ function renderOT() {
         ot.lockedTruth
           ? `<div style="margin:8px 0;"><strong>🔒 OT outcome locked:</strong> ${ot.truth}</div>`
           : `<div style="display:flex; gap:10px; flex-wrap:wrap; margin:10px 0;">
-               <button id="ot_truthYes" style="${ot.truth === \"Yes\" ? \"font-weight:700; border:2px solid #000;\" : \"\"}">Yes (ended in OT)</button>
-               <button id="ot_truthNo" style="${ot.truth === \"No\" ? \"font-weight:700; border:2px solid #000;\" : \"\"}">No (went to SO)</button>
+               <button id="ot_truthYes" style="${ot.truth === "Yes" ? "font-weight:700; border:2px solid #000;" : ""}">Yes (ended in OT)</button>
+               <button id="ot_truthNo" style="${ot.truth === "No" ? "font-weight:700; border:2px solid #000;" : ""}">No (went to SO)</button>
              </div>
              <div style="opacity:0.8; margin-top:6px;">Selected: <strong>${ot.truth ?? "—"}</strong></div>
                           <button id="ot_lockTruth">Lock OT Outcome</button>`
@@ -1158,8 +1112,8 @@ function renderSO() {
         so.lockedTruth
           ? `<div style="margin:8px 0;"><strong>🔒 Shootout outcome locked:</strong> ${so.truth}</div>`
           : `<div style="display:flex; gap:10px; flex-wrap:wrap; margin:10px 0;">
-               <button id="so_truthYes" style="${so.truth === \"Yes\" ? \"font-weight:700; border:2px solid #000;\" : \"\"}">Yes (longer than 3 rounds)</button>
-               <button id="so_truthNo" style="${so.truth === \"No\" ? \"font-weight:700; border:2px solid #000;\" : \"\"}">No (3 rounds or fewer)</button>
+               <button id="so_truthYes" style="${so.truth === "Yes" ? "font-weight:700; border:2px solid #000;" : ""}">Yes (longer than 3 rounds)</button>
+               <button id="so_truthNo" style="${so.truth === "No" ? "font-weight:700; border:2px solid #000;" : ""}">No (3 rounds or fewer)</button>
              </div>
              <div style="opacity:0.8; margin-top:6px;">Selected: <strong>${so.truth ?? "—"}</strong></div>
                           <button id="so_lockTruth">Lock Shootout Outcome</button>`
