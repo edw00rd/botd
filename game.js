@@ -1,3 +1,14 @@
+window.onerror = function(msg, src, line, col) {
+  const el = document.getElementById("game");
+  el.innerHTML = `
+    <div style="padding:12px;border:1px solid red;max-width:900px;">
+      <h3>JS Error</h3>
+      <div><strong>${msg}</strong></div>
+      <div>${src}:${line}:${col}</div>
+    </div>
+  `;
+};
+
 // BOTD — game.js (drop-in)
 // Fixes:
 // - Allow spending DOGs at start of Period 3 (and saving P1/P2 DOGs into P3)
