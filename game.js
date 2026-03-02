@@ -20,7 +20,8 @@ if (!state) {
   state.score = state.score ?? { player: 0, house: 0 };
   
 // Mode: "HOUSE" (default) or "VS" (symmetric)
-state.mode = state.mode ?? "HOUSE";
+state.mode = (state.mode ?? "HOUSE").toString().trim().toUpperCase();
+  if (state.mode !== "VS") state.mode = "HOUSE";
 
 // VS mode uses player2 name (aliasing prior 'house' field)
 state.player2 = state.player2 ?? state.house;
@@ -226,6 +227,8 @@ function render() {
         </div>
         <div style="text-align:right;">
           <p style="margin:6px 0;"><strong>LIVE:</strong> ${state.live ? "ON" : "OFF"}</p>
+
+<button id="restartNow">Start Over</button>
           ${state.live ? `<button id="disableLive">Disable LIVE (House Override)</button>` : ""}
           <p style="margin:6px 0; font-size:0.9rem; opacity:0.75;">
             ${state.live ? "Stats will come from API later." : "House enters period stats manually."}
@@ -474,7 +477,11 @@ function renderPreQ1() {
        </div>
        ${!q1.lockedPlayer ? `<div style="font-size:0.95rem; opacity:0.8;">Player locks first.</div>` : ""}`;
 
-  const continueHTML = (q1.lockedPlayer && q1.lockedHouse) ? `<button id="toQ2">Continue</button>` : "";
+  const canContinue = (q1.lockedPlayer && q1.lockedHouse);
+  const continueHTML = `
+    <button id="toQ2" ${canContinue ? "" : "disabled"}>Continue</button>
+    ${canContinue ? "" : `<div style="margin-top:6px; font-size:0.95rem; opacity:0.8;">Lock both answers to continue.</div>`}
+  `;
 
   return renderSideBySideQuestion({
     title: "Pre-Game Q1 (1 pt)",
@@ -505,7 +512,11 @@ function renderPreQ2() {
   });
 
   const backHTML = `<button id="backToQ1">Back</button>`;
-  const continueHTML = (q2.lockedPlayer && q2.lockedHouse) ? `<button id="toP1">Start Period 1</button>` : "";
+  const canContinue = (q2.lockedPlayer && q2.lockedHouse);
+  const continueHTML = `
+    <button id="toP1" ${canContinue ? "" : "disabled"}>Start Period 1</button>
+    ${canContinue ? "" : `<div style="margin-top:6px; font-size:0.95rem; opacity:0.8;">Lock both answers to start Period 1.</div>`}
+  `;
 
   return renderSideBySideQuestion({
     title: "Pre-Game Q2 (1 pt)",
@@ -1520,6 +1531,13 @@ function finalizeTieGameAndAwardAll() {
 function wireHandlers() {
   const disableLive = document.getElementById("disableLive");
   if (disableLive) disableLive.onclick = () => { state.live = false; render(); };
+
+  const restartNow = document.getElementById("restartNow");
+  if (restartNow) restartNow.onclick = () => {
+    if (!confirm("Start over? This will clear the current game state.")) return;
+    localStorage.removeItem("botd_state");
+    window.location.href = "index.html";
+  };
 
   if (state.screen === "pre_q1") wirePreQ1Buttons();
   if (state.screen === "pre_q2") wirePreQ2Buttons();
