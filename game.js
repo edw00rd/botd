@@ -202,6 +202,11 @@ function commitStage(stageKey) {
   saveState();
 }
 
+function scrollToTop() {
+  // instant jump (no animation) so it feels like a new “screen”
+  window.scrollTo(0, 0);
+}
+
 /* -------------------------
    Main render router
 -------------------------- */
@@ -252,6 +257,7 @@ function render() {
   else screenHTML = `<div style="margin-top:16px;border:1px solid #ccc;padding:12px;max-width:860px;">Unknown screen: ${state.screen}</div>`;
 
   gameEl.innerHTML = `${headerHTML}${screenHTML}`;
+  window.scrollTo(0, 0);
   wireHandlers();
   saveState();
 }
