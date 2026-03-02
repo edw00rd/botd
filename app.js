@@ -1,37 +1,39 @@
-:root { --bg:#0b0d10; --card:#12161c; --text:#e8eef7; --muted:#9aa7b6; --line:#243041; }
-*{box-sizing:border-box}
-body{
-  margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-  background: radial-gradient(1200px 800px at 20% 0%, #161d27, var(--bg));
-  color: var(--text); padding: 24px;
-}
-.topbar{display:flex; gap:16px; align-items:center; max-width:900px; margin:0 auto 18px;}
-.logo{width:72px; height:72px; object-fit:contain; filter: drop-shadow(0 10px 20px rgba(0,0,0,.35));}
-h1{margin:0; letter-spacing:.08em}
-p{margin:6px 0 0; color:var(--muted)}
-.card{
-  max-width:900px; margin:0 auto; background:rgba(18,22,28,.92);
-  border:1px solid rgba(255,255,255,.07); border-radius:16px;
-  padding:18px; box-shadow: 0 20px 60px rgba(0,0,0,.35);
-}
-.row{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 0;}
-.row span{color:var(--muted); min-width:180px}
-input, select{
-  flex:1; max-width:520px;
-  padding:10px 12px; border-radius:12px;
-  border:1px solid rgba(255,255,255,.10); background:#0f1318; color:var(--text);
-}
-.divider{height:1px; background:rgba(255,255,255,.08); margin:10px 0;}
-button{
-  width:100%; padding:12px 14px; border-radius:14px;
-  border:1px solid rgba(255,255,255,.12); background:#1b2430; color:var(--text);
-  font-weight:700; letter-spacing:.06em; cursor:pointer;
-}
-button:hover{background:#223043}
-.note{margin-top:12px; font-size:.92rem}
+// app.js — Start screen logic with HOUSE vs VS mode
+
+document.getElementById("mode").addEventListener("change", (e) => {
+  const mode = (e.target.value || "house").toString().trim().toLowerCase();
+  document.getElementById("p1Label").textContent = mode === "vs" ? "Player 1" : "Player";
+  document.getElementById("p2Label").textContent = mode === "vs" ? "Player 2" : "House";
+});
+
+document.getElementById("startBtn").addEventListener("click", () => {
+  const state = {
+    mode: (document.getElementById("mode").value || "HOUSE").toString().trim().toUpperCase(),
+    league: document.getElementById("league").value,
+    live: document.getElementById("liveToggle").checked,
+    away: document.getElementById("away").value.trim(),
+    home: document.getElementById("home").value.trim(),
+    player1: document.getElementById("player1").value.trim() || "Player 1",
+    house: document.getElementById("house").value.trim() || "House",
+    ante: document.getElementById("ante").value.trim(),
+    screen: "pre_q1"
+  };
+
+  if (!state.away || !state.home) {
+    alert("Enter both Away and Home teams.");
+    return;
+  }
+
+  localStorage.setItem("botd_state", JSON.stringify(state));
+  window.location.href = "game.html";
+});
 
 
-/* Game page helpers */
-#game{white-space:pre-line}
-#game button{width:auto}
-#game input{max-width:520px}
+// Initialize labels on load
+(() => {
+  const modeEl = document.getElementById("mode");
+  if (!modeEl) return;
+  const mode = (modeEl.value || "house").toString().trim().toLowerCase();
+  document.getElementById("p1Label").textContent = mode === "vs" ? "Player 1" : "Player";
+  document.getElementById("p2Label").textContent = mode === "vs" ? "Player 2" : "House";
+})();
