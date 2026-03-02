@@ -2132,8 +2132,8 @@ function wirePeriodButtons(key) {
       const houseCorrect  = (correct.q1.house ? 1 : 0) + (correct.q2.house ? 1 : 0) + (correct.q3.house ? 1 : 0);
 
       let periodWinner = "none";
-      if (playerCorrect >= 2 && houseCorrect < 2) periodWinner = "player";
-      else if (houseCorrect >= 2 && playerCorrect < 2) periodWinner = "house";
+      if (playerCorrect > houseCorrect) periodWinner = "player";
+      else if (houseCorrect > playerCorrect) periodWinner = "house";
 
       // Award points
       state.score.player += playerCorrect;
