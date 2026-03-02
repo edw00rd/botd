@@ -29,3 +29,9 @@ button{
 }
 button:hover{background:#223043}
 .note{margin-top:12px; font-size:.92rem}
+
+
+/* Game page helpers */
+#game{white-space:pre-line}
+#game button{width:auto}
+#game input{max-width:520px}
