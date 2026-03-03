@@ -262,7 +262,18 @@ function render() {
   _lastScreen = state.screen;
   
   if (screenChanged) {
-    document.getElementById("scoreBar")?.scrollIntoView({ block: "start" });
+    const sb = document.getElementById("scoreBar");
+    if (sb) {
+      try {
+        // Modern browsers
+        sb.scrollIntoView({ block: "start" });
+     } catch (e) {
+        // Older/IE-mode fallback
+        try { sb.scrollIntoView(true); } catch (_) { window.scrollTo(0, 0); }
+      }
+    } else {
+      window.scrollTo(0, 0);
+    }
   }
   wireHandlers();
   saveState();
