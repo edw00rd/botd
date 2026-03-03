@@ -326,8 +326,8 @@ function renderDogsDeltaLine(periodKey) {
 
   const n = p.n;
   const isVS = state.mode === "VS";
-  const allLockedPlayerPicks = picks.q1_goal.lockedPlayer && picks.q2_penalty.lockedPlayer && picks.q3_both5sog.lockedPlayer;
-  const allLockedHousePicks = picks.q1_goal.lockedHouse && picks.q2_penalty.lockedHouse && picks.q3_both5sog.lockedHouse;
+  const picks = p.picks;
+
 
 
   const scratchesHouseMode = (p?.dogSpend?.scratchedList ?? []).length;
@@ -550,6 +550,14 @@ function renderPeriod(key, opts = {}) {
   const isP2 = key === "p2";
   const isP3 = key === "p3";
   const isVS = state.mode === "VS";
+
+  // Sequential lock: Player 1 must lock Q1–Q3 before House/Player 2 can answer
+  const allLockedPlayerPicks = (
+    picks.q1_goal.lockedPlayer &&
+    picks.q2_penalty.lockedPlayer &&
+    picks.q3_both5sog.lockedPlayer
+  );
+
 
   // How many scratches allowed
   const maxScratches = isP3 ? 2 : (isP2 ? 1 : 0);
