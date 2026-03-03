@@ -312,8 +312,8 @@ function sealedYesNoSection({ idPrefix, lockedSelf, lockedOther, requireOtherLoc
 
   return `
     <div style="display:flex; gap:10px; flex-wrap:wrap; margin:10px 0;">
-      <button id="${idPrefix}_Yes" ${disabled}>Yes</button>
-      <button id="${idPrefix}_No" ${disabled}>No</button>
+      <button type="button" id="${idPrefix}_Yes" ${disabled}>Yes</button>
+      <button type="button" id="${idPrefix}_No" ${disabled}>No</button>
     </div>
     ${helper}
     ${scratchedMsg}
@@ -480,21 +480,21 @@ function renderPreQ1() {
   const playerSection = q1.lockedPlayer
     ? `<div style="margin:8px 0;"><strong>🔒 Locked</strong></div>`
     : `<div style="display:flex; gap:10px; flex-wrap:wrap; margin:10px 0;">
-         <button id="q1_playerAway">${state.away}</button>
-         <button id="q1_playerHome">${state.home}</button>
+         <button type="button" id="q1_playerAway">${state.away}</button>
+         <button type="button" id="q1_playerHome">${state.home}</button>
        </div>`;
 
   const houseSection = q1.lockedHouse
     ? `<div style="margin:8px 0;"><strong>🔒 Locked</strong></div>`
     : `<div style="display:flex; gap:10px; flex-wrap:wrap; margin:10px 0;">
-         <button id="q1_houseAway" ${!q1.lockedPlayer ? "disabled" : ""}>${state.away}</button>
-         <button id="q1_houseHome" ${!q1.lockedPlayer ? "disabled" : ""}>${state.home}</button>
+         <button type="button" id="q1_houseAway" ${!q1.lockedPlayer ? "disabled" : ""}>${state.away}</button>
+         <button type="button" id="q1_houseHome" ${!q1.lockedPlayer ? "disabled" : ""}>${state.home}</button>
        </div>
        ${!q1.lockedPlayer ? `<div style="font-size:0.95rem; opacity:0.8;">Player locks first.</div>` : ""}`;
 
   const canContinue = (q1.lockedPlayer && q1.lockedHouse);
   const continueHTML = `
-    <button id="toQ2" ${canContinue ? "" : "disabled"}>Continue</button>
+    <button type="button" id="toQ2" ${canContinue ? "" : "disabled"}>Continue</button>
     ${canContinue ? "" : `<div style="margin-top:6px; font-size:0.95rem; opacity:0.8;">Lock both answers to continue.</div>`}
   `;
 
@@ -526,10 +526,10 @@ function renderPreQ2() {
     requireOtherLock: true
   });
 
-  const backHTML = `<button id="backToQ1">Back</button>`;
+  const backHTML = `<button type="button" id="backToQ1">Back</button>`;
   const canContinue = (q2.lockedPlayer && q2.lockedHouse);
   const continueHTML = `
-    <button id="toP1" ${canContinue ? "" : "disabled"}>Start Period 1</button>
+    <button type="button" id="toP1" ${canContinue ? "" : "disabled"}>Start Period 1</button>
     ${canContinue ? "" : `<div style="margin-top:6px; font-size:0.95rem; opacity:0.8;">Lock both answers to start Period 1.</div>`}
   `;
 
