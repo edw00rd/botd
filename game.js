@@ -291,13 +291,13 @@ function renderSideBySideQuestion({ title, questionText, leftName, rightName, le
   `;
 }
 
-function sealedYesNoSection({ idPrefix, lockedSelf, lockedOther, requireOtherLock, disabledAll = false }) {
+function sealedYesNoSection({ idPrefix, lockedSelf, lockedOther, requireOtherLock, disabledAll = false, helperText = "Player locks first." }) {
   const lockedUI = `<div style="margin:8px 0;"><strong>🔒 Locked</strong></div>`;
   if (lockedSelf) return lockedUI;
 
   const disabled = disabledAll || (requireOtherLock && !lockedOther) ? "disabled" : "";
   const helper = (!disabledAll && requireOtherLock && !lockedOther)
-    ? `<div style="font-size:0.95rem; opacity:0.8;">Player locks first.</div>`
+    ? `<div style="font-size:0.95rem; opacity:0.8;">${helperText}</div>`
     : "";
 
   const scratchedMsg = disabledAll
@@ -326,6 +326,9 @@ function renderDogsDeltaLine(periodKey) {
 
   const n = p.n;
   const isVS = state.mode === "VS";
+  const allLockedPlayerPicks = picks.q1_goal.lockedPlayer && picks.q2_penalty.lockedPlayer && picks.q3_both5sog.lockedPlayer;
+  const allLockedHousePicks = picks.q1_goal.lockedHouse && picks.q2_penalty.lockedHouse && picks.q3_both5sog.lockedHouse;
+
 
   const scratchesHouseMode = (p?.dogSpend?.scratchedList ?? []).length;
 
@@ -599,6 +602,7 @@ function renderPeriod(key, opts = {}) {
       dogsCount(side) > 0 &&
       !p.lockedResults &&
       !anyLockedBySide(side) &&
+      (side === "player" || allLockedPlayerPicks) &&
       !(isVS ? (p.dogSpend[side].voided) : p.dogSpend.voided) &&
       (scratchedList(side).length < maxScratches);
 
@@ -647,8 +651,9 @@ function renderPeriod(key, opts = {}) {
     const houseSection = sealedYesNoSection({
       idPrefix: `${idPrefix}_house`,
       lockedSelf: pickState.lockedHouse,
-      lockedOther: pickState.lockedPlayer,
+      lockedOther: allLockedPlayerPicks,
       requireOtherLock: true,
+      helperText: `${state.player1} locks Q1–Q3 first.`,
       disabledAll: (isP2 || isP3) && isScratchedAgainst("house", qid)
     });
 
