@@ -210,6 +210,7 @@ function scrollToTop() {
 /* -------------------------
    Main render router
 -------------------------- */
+let _lastScreen = null;
 function render() {
   const away = state.away;
   const home = state.home;
@@ -220,7 +221,7 @@ function render() {
       <div style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap;">
         <div>
           <p style="margin:6px 0;"><strong>${state.player1}</strong> vs <strong>${state.house}</strong></p>
-          <p style="margin:6px 0;">
+          <p id="scoreBar" style="margin:6px 0;">
             <strong>Score:</strong> ${state.player1} ${state.score.player} — ${state.house} ${state.score.house}
             &nbsp; | &nbsp; <strong>DOGs:</strong> ${
   (state.mode === "VS")
@@ -257,7 +258,12 @@ function render() {
   else screenHTML = `<div style="margin-top:16px;border:1px solid #ccc;padding:12px;max-width:860px;">Unknown screen: ${state.screen}</div>`;
 
   gameEl.innerHTML = `${headerHTML}${screenHTML}`;
-  window.scrollTo(0, 0);
+  const screenChanged = state.screen !== _lastScreen;
+  _lastScreen = state.screen;
+  
+  if (screenChanged) {
+    document.getElementById("scoreBar")?.scrollIntoView({ block: "start" });
+  }
   wireHandlers();
   saveState();
 }
