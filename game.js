@@ -13,6 +13,91 @@ const gameEl = document.getElementById("game");
 
 // Prevent the browser from restoring scroll position between "screens"
 if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+
+// Fallback: delegated click handling (only kicks in if per-button onclick wiring is missing).
+// This prevents "all buttons dead" situations if a runtime error interrupts wireHandlers().
+let __botdDelegated = false;
+function installDelegatedFallback() {
+  if (__botdDelegated) return;
+  __botdDelegated = true;
+
+  document.addEventListener("click", (e) => {
+    const t = e.target;
+    if (!(t instanceof Element)) return;
+    const id = t.id;
+    if (!id) return;
+
+    // If normal wiring exists (onclick set), let it handle the click.
+    const el = document.getElementById(id);
+    if (el && typeof el.onclick === "function") return;
+
+    // ---- Critical header buttons ----
+    if (id === "disableLive") {
+      e.preventDefault(); e.stopPropagation();
+      state.live = false; render();
+      return;
+    }
+    if (id === "restartNow" || id === "restartGame") {
+      e.preventDefault(); e.stopPropagation();
+      if (!confirm("Start over? This will clear the current game state.")) return;
+      localStorage.removeItem("botd_state");
+      window.location.href = "index.html";
+      return;
+    }
+
+    // ---- Pre-game Q1 ----
+    if (id === "q1_playerAway") { e.preventDefault(); e.stopPropagation(); state.pre.q1.player="Away"; state.pre.q1.lockedPlayer=true; render(); return; }
+    if (id === "q1_playerHome") { e.preventDefault(); e.stopPropagation(); state.pre.q1.player="Home"; state.pre.q1.lockedPlayer=true; render(); return; }
+    if (id === "q1_houseAway")  { e.preventDefault(); e.stopPropagation(); if (!state.pre.q1.lockedPlayer) return; state.pre.q1.house="Away"; state.pre.q1.lockedHouse=true; render(); return; }
+    if (id === "q1_houseHome")  { e.preventDefault(); e.stopPropagation(); if (!state.pre.q1.lockedPlayer) return; state.pre.q1.house="Home"; state.pre.q1.lockedHouse=true; render(); return; }
+
+    // ---- Pre-game Q2 ----
+    if (id === "q2_player_Yes" || id === "q2_player_No") {
+      e.preventDefault(); e.stopPropagation();
+      if (typeof pushUndo === "function") pushUndo("pre_q2", snapPreQ2());
+      state.pre.q2.player = (id.endsWith("_Yes") ? "Yes" : "No");
+      state.pre.q2.lockedPlayer = true;
+      render(); return;
+    }
+    if (id === "q2_house_Yes" || id === "q2_house_No") {
+      e.preventDefault(); e.stopPropagation();
+      if (!state.pre.q2.lockedPlayer) return;
+      if (typeof pushUndo === "function") pushUndo("pre_q2", snapPreQ2());
+      state.pre.q2.house = (id.endsWith("_Yes") ? "Yes" : "No");
+      state.pre.q2.lockedHouse = true;
+      render(); return;
+    }
+
+    // ---- Navigation ----
+    if (id === "toQ2") { e.preventDefault(); e.stopPropagation(); state.screen="pre_q2"; render(); return; }
+    if (id === "backToQ1") { e.preventDefault(); e.stopPropagation(); state.screen="pre_q1"; render(); return; }
+
+    if (id === "toP1") {
+      e.preventDefault(); e.stopPropagation();
+      if (typeof commitStage === "function") commitStage("pregame");
+      if (typeof setPendingScrollTarget === "function" && typeof chooseScrollTargetForScreen === "function") {
+        setPendingScrollTarget(chooseScrollTargetForScreen("p1"));
+      }
+      state.screen="p1"; render(); return;
+    }
+    if (id === "toP2") {
+      e.preventDefault(); e.stopPropagation();
+      if (typeof commitStage === "function") commitStage("p1");
+      if (typeof setPendingScrollTarget === "function" && typeof chooseScrollTargetForScreen === "function") {
+        setPendingScrollTarget(chooseScrollTargetForScreen("p2"));
+      }
+      state.screen="p2"; render(); return;
+    }
+    if (id === "toP3") {
+      e.preventDefault(); e.stopPropagation();
+      if (typeof commitStage === "function") commitStage("p2");
+      if (typeof setPendingScrollTarget === "function" && typeof chooseScrollTargetForScreen === "function") {
+        setPendingScrollTarget(chooseScrollTargetForScreen("p3"));
+      }
+      state.screen="p3"; render(); return;
+    }
+  }, true);
+}
 if (!state) {
   gameEl.textContent = "No game state found. Go back to setup.";
 } else {
@@ -99,6 +184,7 @@ if (state.mode === "VS") {
     housePointRemoved: false // true/false
   };
 
+  installDelegatedFallback();
   render();
 }
 
@@ -326,7 +412,7 @@ function render() {
   _lastScreen = state.screen;
 
   // Wire handlers immediately (so UI is always clickable even if scroll fails)
-  wireHandlers();
+  try { wireHandlers(); } catch (e) { console.error("wireHandlers failed", e); }
 
   // If nothing explicitly requested a scroll target, choose one for this screen change
   if (screenChanged && !_pendingScrollTargetId) {
@@ -336,7 +422,7 @@ function render() {
   saveState();
 
   // Perform deferred scroll after paint
-  performPendingScroll();
+  try { performPendingScroll(); } catch (e) { console.warn("performPendingScroll failed", e); }
 }
 
 /* -------------------------
