@@ -24,7 +24,9 @@ function installDelegatedFallback() {
   document.addEventListener("click", (e) => {
     const t = e.target;
     if (!(t instanceof Element)) return;
-    const id = t.id;
+    const btn = t.closest("button, [role=\"button\"], a");
+    if (!btn) return;
+    const id = btn.id;
     if (!id) return;
 
     // If normal wiring exists (onclick set), let it handle the click.
@@ -74,6 +76,10 @@ function installDelegatedFallback() {
 
     if (id === "toP1") {
       e.preventDefault(); e.stopPropagation();
+      if (!state.pre?.q2?.lockedPlayer || !state.pre?.q2?.lockedHouse) {
+        alert("Lock both Pre-Game Q2 answers to start Period 1.");
+        return;
+      }
       if (typeof commitStage === "function") commitStage("pregame");
       if (typeof setPendingScrollTarget === "function" && typeof chooseScrollTargetForScreen === "function") {
         setPendingScrollTarget(chooseScrollTargetForScreen("p1"));
@@ -686,7 +692,7 @@ function renderPreQ2() {
   const backHTML = `<button type="button" id="backToQ1">Back</button>`;
   const canContinue = (q2.lockedPlayer && q2.lockedHouse);
   const continueHTML = `
-    <button type="button" id="toP1" ${canContinue ? "" : "disabled"}>Start Period 1</button>
+    <button type="button" id="toP1">Start Period 1</button>
     ${canContinue ? "" : `<div style="margin-top:6px; font-size:0.95rem; opacity:0.8;">Lock both answers to start Period 1.</div>`}
   `;
 
@@ -1750,7 +1756,17 @@ function wireHandlers() {
   };
 
   const toP1 = document.getElementById("toP1");
-  if (toP1) toP1.onclick = () => { commitStage("pregame"); setPendingScrollTarget(chooseScrollTargetForScreen("p1")); state.screen = "p1"; render(); };
+  if (toP1) toP1.onclick = () => {
+    // Don’t rely on the button being disabled — enforce the rule here
+    if (!state.pre?.q2?.lockedPlayer || !state.pre?.q2?.lockedHouse) {
+      alert("Lock both Pre-Game Q2 answers to start Period 1.");
+      return;
+    }
+    commitStage("pregame");
+    setPendingScrollTarget(chooseScrollTargetForScreen("p1"));
+    state.screen = "p1";
+    render();
+  };
 
   const toP2 = document.getElementById("toP2");
   if (toP2) toP2.onclick = () => { commitStage("p1"); setPendingScrollTarget(chooseScrollTargetForScreen("p2")); state.screen = "p2"; render(); };
