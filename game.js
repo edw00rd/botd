@@ -234,8 +234,8 @@ function render() {
         <div style="text-align:right;">
           <p style="margin:6px 0;"><strong>LIVE:</strong> ${state.live ? "ON" : "OFF"}</p>
 
-<button id="restartNow">Start Over</button>
-          ${state.live ? `<button id="disableLive">Disable LIVE (House Override)</button>` : ""}
+<button type="button" id="restartNow">Start Over</button>
+          ${state.live ? `<button type="button" id="disableLive">Disable LIVE (House Override)</button>` : ""}
           <p style="margin:6px 0; font-size:0.9rem; opacity:0.75;">
             ${state.live ? "Stats will come from API later." : "House enters period stats manually."}
           </p>
@@ -258,6 +258,8 @@ function render() {
   else screenHTML = `<div style="margin-top:16px;border:1px solid #ccc;padding:12px;max-width:860px;">Unknown screen: ${state.screen}</div>`;
 
   gameEl.innerHTML = `${headerHTML}${screenHTML}`;
+
+  wireHandlers();
   const screenChanged = state.screen !== _lastScreen;
   _lastScreen = state.screen;
   
@@ -275,7 +277,6 @@ function render() {
       window.scrollTo(0, 0);
     }
   }
-  wireHandlers();
   saveState();
 }
 
@@ -646,9 +647,9 @@ function renderPeriod(key, opts = {}) {
           ${isP3 ? `<div style="margin-top:6px; font-size:0.9rem; opacity:0.75;">(Once Period 3 starts, leftover DOGs become void for that player.)</div>` : ""}
         </div>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
-          <button id="scratch_${prefix}q1">Scratch Q1 (Goal?)</button>
-          <button id="scratch_${prefix}q2">Scratch Q2 (Penalty?)</button>
-          <button id="scratch_${prefix}q3">Scratch Q3 (Both 5+ SOG?)</button>
+          <button type="button" id="scratch_${prefix}q1">Scratch Q1 (Goal?)</button>
+          <button type="button" id="scratch_${prefix}q2">Scratch Q2 (Penalty?)</button>
+          <button type="button" id="scratch_${prefix}q3">Scratch Q3 (Both 5+ SOG?)</button>
         </div>
         <div style="margin-top:8px; font-size:0.9rem; opacity:0.75;">
           DOGs: ${renderDogs(dogsCount(side))} &nbsp; | &nbsp; Scratches: ${scratchesNow}/${maxScratches}
@@ -775,7 +776,7 @@ function renderPeriod(key, opts = {}) {
               </div>
             </div>
 
-            <button id="${key}_lockResults">Lock Period ${p.n} Results</button>
+            <button type="button" id="${key}_lockResults">Lock Period ${p.n} Results</button>
 
             <div style="margin-top:8px; font-size:0.9rem; opacity:0.75;">
               Start SOG this period: Away ${state.sog.start.away ?? 0}, Home ${state.sog.start.home ?? 0}.
@@ -793,7 +794,7 @@ function renderPeriod(key, opts = {}) {
 
   const continueHTML =
     (p.computed && p.lockedResults)
-      ? `<button id="${continueId}">${continueLabel}</button>`
+      ? `<button type="button" id="${continueId}">${continueLabel}</button>`
       : "";
 
   const p3Banner = opts.p3Mode ? `
@@ -817,7 +818,7 @@ function renderPeriod(key, opts = {}) {
       ${resultsPanel}
 
       <div style="display:flex; gap:10px; margin-top:12px;">
-        <button id="${backBtnId}">Back</button>
+        <button type="button" id="${backBtnId}">Back</button>
         ${continueHTML}
       </div>
     </div>
@@ -930,11 +931,11 @@ function renderGoodBoy() {
       </p>
 
       <div style="display:flex; gap:10px; flex-wrap:wrap;">
-        <button id="gbRoll" ${gb.resolved ? "disabled" : ""}>FETCH!! (Roll 🎲)</button>
+        <button type="button" id="gbRoll" ${gb.resolved ? "disabled" : ""}>FETCH!! (Roll 🎲)</button>
         <label style="display:flex; gap:8px; align-items:center;">
           <span>Manual roll:</span>
           <input id="gbManual" type="number" min="1" max="6" inputmode="numeric" style="width:80px;" ${gb.resolved ? "disabled" : ""}/>
-          <button id="gbSetManual" ${gb.resolved ? "disabled" : ""}>Set</button>
+          <button type="button" id="gbSetManual" ${gb.resolved ? "disabled" : ""}>Set</button>
         </label>
       </div>
 
@@ -942,8 +943,8 @@ function renderGoodBoy() {
       ${status}
 
       <div style="display:flex; gap:10px; margin-top:12px;">
-        <button id="backToP3">Back</button>
-        <button id="toPostgame">Continue</button>
+        <button type="button" id="backToP3">Back</button>
+        <button type="button" id="toPostgame">Continue</button>
       </div>
     </div>
   `;
@@ -996,8 +997,8 @@ function renderRegulation() {
     <div><strong>PP goal:</strong> ${reg.ppGoal}</div>
     <div style="margin-top:12px;">
       ${reg.awayGoals === reg.homeGoals
-        ? `<button id="toOT">BOTD → OT</button>`
-        : `<button id="awardPregame">Award Pre-Game Points</button>`
+        ? `<button type="button" id="toOT">BOTD → OT</button>`
+        : `<button type="button" id="awardPregame">Award Pre-Game Points</button>`
       }
     </div>
   ` : `
@@ -1025,12 +1026,12 @@ function renderRegulation() {
 
     <div style="margin-top:12px; font-weight:700;">Was there a power-play goal in the game?</div>
     <div style="display:flex; gap:10px; flex-wrap:wrap; margin:10px 0;">
-      <button id="regPPYes">Yes</button>
-      <button id="regPPNo">No</button>
+      <button type="button" id="regPPYes">Yes</button>
+      <button type="button" id="regPPNo">No</button>
       <div style="opacity:0.8;">Selected: <strong>${reg.ppGoal ?? "—"}</strong></div>
     </div>
 
-    <button id="lockRegulation">Lock Regulation</button>
+    <button type="button" id="lockRegulation">Lock Regulation</button>
   `;
 
   return `
@@ -1039,7 +1040,7 @@ function renderRegulation() {
       ${lockedView}
 
       <div style="display:flex; gap:10px; margin-top:12px;">
-        <button id="backFromRegulation">Back</button>
+        <button type="button" id="backFromRegulation">Back</button>
       </div>
     </div>
   `;
@@ -1055,15 +1056,15 @@ function renderOT() {
   const playerSection = lockedP
     ? `<div style="margin:8px 0;"><strong>🔒 Locked</strong></div>`
     : `<div style="display:flex; gap:10px; flex-wrap:wrap; margin:10px 0;">
-         <button id="ot_playerYes">Yes</button>
-         <button id="ot_playerNo">No</button>
+         <button type="button" id="ot_playerYes">Yes</button>
+         <button type="button" id="ot_playerNo">No</button>
        </div>`;
 
   const houseSection = lockedH
     ? `<div style="margin:8px 0;"><strong>🔒 Locked</strong></div>`
     : `<div style="display:flex; gap:10px; flex-wrap:wrap; margin:10px 0;">
-         <button id="ot_houseYes" ${!lockedP ? "disabled" : ""}>Yes</button>
-         <button id="ot_houseNo" ${!lockedP ? "disabled" : ""}>No</button>
+         <button type="button" id="ot_houseYes" ${!lockedP ? "disabled" : ""}>Yes</button>
+         <button type="button" id="ot_houseNo" ${!lockedP ? "disabled" : ""}>No</button>
        </div>
        ${!lockedP ? `<div style="font-size:0.95rem; opacity:0.8;">Player locks first.</div>` : ""}`;
 
@@ -1077,11 +1078,11 @@ function renderOT() {
         ot.lockedTruth
           ? `<div style="margin:8px 0;"><strong>🔒 OT outcome locked:</strong> ${ot.truth}</div>`
           : `<div style="display:flex; gap:10px; flex-wrap:wrap; margin:10px 0;">
-               <button id="ot_truthYes" style="${ot.truth === "Yes" ? "font-weight:700; border:2px solid #000;" : ""}">Yes (ended in OT)</button>
-               <button id="ot_truthNo" style="${ot.truth === "No" ? "font-weight:700; border:2px solid #000;" : ""}">No (went to SO)</button>
+               <button type="button" id="ot_truthYes" style="${ot.truth === "Yes" ? "font-weight:700; border:2px solid #000;" : ""}">Yes (ended in OT)</button>
+               <button type="button" id="ot_truthNo" style="${ot.truth === "No" ? "font-weight:700; border:2px solid #000;" : ""}">No (went to SO)</button>
              </div>
              <div style="opacity:0.8; margin-top:6px;">Selected: <strong>${ot.truth ?? "—"}</strong></div>
-                          <button id="ot_lockTruth">Lock OT Outcome</button>`
+                          <button type="button" id="ot_lockTruth">Lock OT Outcome</button>`
       }
 
       ${
@@ -1089,18 +1090,18 @@ function renderOT() {
           ? `<div style="margin-top:12px;">
                <div style="font-weight:700; margin-bottom:6px;">Final Winner (House)</div>
                <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                 <button id="finalWinnerAway">${state.away}</button>
-                 <button id="finalWinnerHome">${state.home}</button>
+                 <button type="button" id="finalWinnerAway">${state.away}</button>
+                 <button type="button" id="finalWinnerHome">${state.home}</button>
                </div>
                <div style="margin-top:8px; opacity:0.85;">Selected: <strong>${state.final.winner ?? "—"}</strong></div>
-               <button id="finalizeFromOT" ${state.final.winner ? "" : "disabled"} style="margin-top:10px;">Finalize Game</button>
+               <button type="button" id="finalizeFromOT" ${state.final.winner ? "" : "disabled"} style="margin-top:10px;">Finalize Game</button>
              </div>`
           : ``
       }
 
       ${
         ot.lockedTruth && ot.truth === "No"
-          ? `<div style="margin-top:12px;"><button id="toSO">Continue to Shootout</button></div>`
+          ? `<div style="margin-top:12px;"><button type="button" id="toSO">Continue to Shootout</button></div>`
           : ``
       }
     </div>
@@ -1128,7 +1129,7 @@ function renderOT() {
       ${truthPanel}
 
       <div style="display:flex; gap:10px; margin-top:12px;">
-        <button id="backToRegulation">Back</button>
+        <button type="button" id="backToRegulation">Back</button>
       </div>
     </div>
   `;
@@ -1144,15 +1145,15 @@ function renderSO() {
   const playerSection = lockedP
     ? `<div style="margin:8px 0;"><strong>🔒 Locked</strong></div>`
     : `<div style="display:flex; gap:10px; flex-wrap:wrap; margin:10px 0;">
-         <button id="so_playerYes">Yes</button>
-         <button id="so_playerNo">No</button>
+         <button type="button" id="so_playerYes">Yes</button>
+         <button type="button" id="so_playerNo">No</button>
        </div>`;
 
   const houseSection = lockedH
     ? `<div style="margin:8px 0;"><strong>🔒 Locked</strong></div>`
     : `<div style="display:flex; gap:10px; flex-wrap:wrap; margin:10px 0;">
-         <button id="so_houseYes" ${!lockedP ? "disabled" : ""}>Yes</button>
-         <button id="so_houseNo" ${!lockedP ? "disabled" : ""}>No</button>
+         <button type="button" id="so_houseYes" ${!lockedP ? "disabled" : ""}>Yes</button>
+         <button type="button" id="so_houseNo" ${!lockedP ? "disabled" : ""}>No</button>
        </div>
        ${!lockedP ? `<div style="font-size:0.95rem; opacity:0.8;">Player locks first.</div>` : ""}`;
 
@@ -1166,11 +1167,11 @@ function renderSO() {
         so.lockedTruth
           ? `<div style="margin:8px 0;"><strong>🔒 Shootout outcome locked:</strong> ${so.truth}</div>`
           : `<div style="display:flex; gap:10px; flex-wrap:wrap; margin:10px 0;">
-               <button id="so_truthYes" style="${so.truth === "Yes" ? "font-weight:700; border:2px solid #000;" : ""}">Yes (longer than 3 rounds)</button>
-               <button id="so_truthNo" style="${so.truth === "No" ? "font-weight:700; border:2px solid #000;" : ""}">No (3 rounds or fewer)</button>
+               <button type="button" id="so_truthYes" style="${so.truth === "Yes" ? "font-weight:700; border:2px solid #000;" : ""}">Yes (longer than 3 rounds)</button>
+               <button type="button" id="so_truthNo" style="${so.truth === "No" ? "font-weight:700; border:2px solid #000;" : ""}">No (3 rounds or fewer)</button>
              </div>
              <div style="opacity:0.8; margin-top:6px;">Selected: <strong>${so.truth ?? "—"}</strong></div>
-                          <button id="so_lockTruth">Lock Shootout Outcome</button>`
+                          <button type="button" id="so_lockTruth">Lock Shootout Outcome</button>`
       }
 
       ${
@@ -1178,11 +1179,11 @@ function renderSO() {
           ? `<div style="margin-top:12px;">
                <div style="font-weight:700; margin-bottom:6px;">Final Winner (House)</div>
                <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                 <button id="finalWinnerAwaySO">${state.away}</button>
-                 <button id="finalWinnerHomeSO">${state.home}</button>
+                 <button type="button" id="finalWinnerAwaySO">${state.away}</button>
+                 <button type="button" id="finalWinnerHomeSO">${state.home}</button>
                </div>
                <div style="margin-top:8px; opacity:0.85;">Selected: <strong>${state.final.winner ?? "—"}</strong></div>
-               <button id="finalizeFromSO" ${state.final.winner ? "" : "disabled"} style="margin-top:10px;">Finalize Game</button>
+               <button type="button" id="finalizeFromSO" ${state.final.winner ? "" : "disabled"} style="margin-top:10px;">Finalize Game</button>
              </div>`
           : ``
       }
@@ -1211,7 +1212,7 @@ function renderSO() {
       ${truthPanel}
 
       <div style="display:flex; gap:10px; margin-top:12px;">
-        <button id="backToOT">Back</button>
+        <button type="button" id="backToOT">Back</button>
       </div>
     </div>
   `;
@@ -1483,7 +1484,7 @@ function renderPostgameSummary() {
       }
 
       <div style="margin-top:18px; display:flex; gap:10px; flex-wrap:wrap;">
-        <button id="restartGame">New Game</button>
+        <button type="button" id="restartGame">New Game</button>
       </div>
     </div>
   `;
