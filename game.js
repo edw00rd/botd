@@ -10,6 +10,9 @@
 const state = JSON.parse(localStorage.getItem("botd_state"));
 const gameEl = document.getElementById("game");
 
+
+// Prevent the browser from restoring scroll position between "screens"
+if ("scrollRestoration" in history) history.scrollRestoration = "manual";
 if (!state) {
   gameEl.textContent = "No game state found. Go back to setup.";
 } else {
@@ -95,8 +98,6 @@ if (state.mode === "VS") {
     target: null,            // label
     housePointRemoved: false // true/false
   };
-
-  if ("scrollRestoration" in history) history.scrollRestoration = "manual";
 
   render();
 }
@@ -209,29 +210,68 @@ function scrollToTop() {
   window.scrollTo(0, 0);
 }
 
-function scrollToScoreBar() {
-  const sb = document.getElementById("scoreBar");
-  if (!sb) { window.scrollTo(0, 0); return; }
+/* -------------------------
+   Main render router
+-------------------------- */
 
-  // Prevent browser focus from pulling the view back to the last-clicked button
-  try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch (_) {}
+// ----- Scroll targeting (on screen changes only) -----
+let _pendingScrollTargetId = null;
+
+function setPendingScrollTarget(id) {
+  _pendingScrollTargetId = id;
+}
+
+function chooseScrollTargetForScreen(screen) {
+  // If there are DOGs to spend at the start of P2/P3, scroll to the DOG spend tile.
+  if (screen === "p2" || screen === "p3") {
+    const isVS = state.mode === "VS";
+    if (!isVS) {
+      const dogs = Number.isFinite(state.dogs) ? state.dogs : 0;
+      return dogs > 0 ? "dogsSpendTile" : "scoreBar";
+    }
+    const pDogs = Number.isFinite(state.dogs?.player) ? state.dogs.player : 0;
+    const hDogs = Number.isFinite(state.dogs?.house) ? state.dogs.house : 0;
+    if (pDogs > 0) return "dogsSpendTile_player";
+    if (hDogs > 0) return "dogsSpendTile_house";
+    return "scoreBar";
+  }
+
+  // Default anchor
+  return "scoreBar";
+}
+
+function performPendingScroll() {
+  if (!_pendingScrollTargetId) return;
+
+  const id = _pendingScrollTargetId;
+  _pendingScrollTargetId = null;
+
+  const el = document.getElementById(id);
+
+  // Fallback: if dogs tile isn't present, scroll to score instead
+  if (!el) {
+    if (id !== "scoreBar") {
+      setPendingScrollTarget("scoreBar");
+      return performPendingScroll();
+    }
+    return;
+  }
+
+  // Stop the browser from trying to keep the last-clicked button in view
+  try { document.activeElement?.blur?.(); } catch (_) {}
 
   const doScroll = () => {
-    try {
-      sb.scrollIntoView({ block: "start" });
-    } catch (e) {
-      try { sb.scrollIntoView(true); }
+    try { el.scrollIntoView({ block: "start" }); }
+    catch (e) {
+      try { el.scrollIntoView(true); }
       catch (_) { window.scrollTo(0, 0); }
     }
   };
 
-  if (window.requestAnimationFrame) requestAnimationFrame(doScroll);
+  if (window.requestAnimationFrame) window.requestAnimationFrame(doScroll);
   else setTimeout(doScroll, 0);
 }
 
-/* -------------------------
-   Main render router
--------------------------- */
 let _lastScreen = null;
 function render() {
   const away = state.away;
@@ -281,12 +321,22 @@ function render() {
 
   gameEl.innerHTML = `${headerHTML}${screenHTML}`;
 
-  wireHandlers();
+  // Determine if we actually changed "screens"
   const screenChanged = state.screen !== _lastScreen;
   _lastScreen = state.screen;
 
-  if (screenChanged) scrollToScoreBar();
+  // Wire handlers immediately (so UI is always clickable even if scroll fails)
+  wireHandlers();
+
+  // If nothing explicitly requested a scroll target, choose one for this screen change
+  if (screenChanged && !_pendingScrollTargetId) {
+    setPendingScrollTarget(chooseScrollTargetForScreen(state.screen));
+  }
+
   saveState();
+
+  // Perform deferred scroll after paint
+  performPendingScroll();
 }
 
 /* -------------------------
@@ -646,8 +696,9 @@ function renderPeriod(key, opts = {}) {
     const prefix = isVS ? `${side}_` : "";
     const scratchesNow = scratchedList(side).length;
 
+    const tileId = isVS ? `dogsSpendTile_${side}` : "dogsSpendTile";
     return `
-      <div style="margin-top:12px; border:1px solid #ddd; padding:10px; max-width:860px;">
+      <div id="${tileId}" style="margin-top:12px; border:1px solid #ddd; padding:10px; max-width:860px;">
         <div style="font-weight:800; margin-bottom:6px;">${sideLabel}: Spend DOGs 🐶</div>
         <div style="opacity:0.85; margin-bottom:10px;">
           Spend <strong>1 DOG</strong> to scratch <strong>one opponent question</strong> this period.
@@ -1613,10 +1664,10 @@ function wireHandlers() {
   };
 
   const toP1 = document.getElementById("toP1");
-  if (toP1) toP1.onclick = () => { commitStage("pregame"); state.screen = "p1"; render(); };
+  if (toP1) toP1.onclick = () => { commitStage("pregame"); setPendingScrollTarget(chooseScrollTargetForScreen("p1")); state.screen = "p1"; render(); };
 
   const toP2 = document.getElementById("toP2");
-  if (toP2) toP2.onclick = () => { commitStage("p1"); state.screen = "p2"; render(); };
+  if (toP2) toP2.onclick = () => { commitStage("p1"); setPendingScrollTarget(chooseScrollTargetForScreen("p2")); state.screen = "p2"; render(); };
 
   const toP3 = document.getElementById("toP3");
   if (toP3) toP3.onclick = () => {
@@ -1625,6 +1676,8 @@ function wireHandlers() {
     const p3 = state.periods.p3;
     p3.dogSpend = p3.dogSpend ?? { used: false, scratched: null, scratchedList: [], voided: false };
     p3.dogSpend.voided = false;
+
+    setPendingScrollTarget(chooseScrollTargetForScreen("p3"));
 
     state.screen = "p3";
     render();
