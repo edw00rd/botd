@@ -96,6 +96,8 @@ if (state.mode === "VS") {
     housePointRemoved: false // true/false
   };
 
+  if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+
   render();
 }
 
@@ -207,6 +209,26 @@ function scrollToTop() {
   window.scrollTo(0, 0);
 }
 
+function scrollToScoreBar() {
+  const sb = document.getElementById("scoreBar");
+  if (!sb) { window.scrollTo(0, 0); return; }
+
+  // Prevent browser focus from pulling the view back to the last-clicked button
+  try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch (_) {}
+
+  const doScroll = () => {
+    try {
+      sb.scrollIntoView({ block: "start" });
+    } catch (e) {
+      try { sb.scrollIntoView(true); }
+      catch (_) { window.scrollTo(0, 0); }
+    }
+  };
+
+  if (window.requestAnimationFrame) requestAnimationFrame(doScroll);
+  else setTimeout(doScroll, 0);
+}
+
 /* -------------------------
    Main render router
 -------------------------- */
@@ -262,21 +284,8 @@ function render() {
   wireHandlers();
   const screenChanged = state.screen !== _lastScreen;
   _lastScreen = state.screen;
-  
-  if (screenChanged) {
-    const sb = document.getElementById("scoreBar");
-    if (sb) {
-      try {
-        // Modern browsers
-        sb.scrollIntoView({ block: "start" });
-     } catch (e) {
-        // Older/IE-mode fallback
-        try { sb.scrollIntoView(true); } catch (_) { window.scrollTo(0, 0); }
-      }
-    } else {
-      window.scrollTo(0, 0);
-    }
-  }
+
+  if (screenChanged) scrollToScoreBar();
   saveState();
 }
 
