@@ -24,14 +24,26 @@ function installDelegatedFallback() {
   document.addEventListener("click", (e) => {
     const t = e.target;
     if (!(t instanceof Element)) return;
+
+    // IMPORTANT: use closest() so clicks on nested elements inside buttons still work
     const btn = t.closest("button, [role=\"button\"], a");
     if (!btn) return;
+
     const id = btn.id;
     if (!id) return;
 
-    // If normal wiring exists (onclick set), let it handle the click.
+    // For navigation buttons, ALWAYS handle here (even if onclick exists),
+    // because we've seen cases where wiring breaks mid-render or focus/scroll interferes.
+    const isNav =
+      id === "toQ2" || id === "backToQ1" ||
+      id === "toP1" || id === "toP2" || id === "toP3" ||
+      id === "toGoodBoy" || id === "toPostgame" ||
+      id === "backToQ2" || id === "backToP1" || id === "backToP2" || id === "backToP3" ||
+      id === "toOT" || id === "toSO" || id === "awardPregame";
+
+    // If normal wiring exists (onclick set), let it handle the click — except for nav buttons.
     const el = document.getElementById(id);
-    if (el && typeof el.onclick === "function") return;
+    if (!isNav && el && typeof el.onclick === "function") return;
 
     // ---- Critical header buttons ----
     if (id === "disableLive") {
@@ -76,10 +88,13 @@ function installDelegatedFallback() {
 
     if (id === "toP1") {
       e.preventDefault(); e.stopPropagation();
+
+      // Enforce readiness here (button may be styled enabled)
       if (!state.pre?.q2?.lockedPlayer || !state.pre?.q2?.lockedHouse) {
         alert("Lock both Pre-Game Q2 answers to start Period 1.");
         return;
       }
+
       if (typeof commitStage === "function") commitStage("pregame");
       if (typeof setPendingScrollTarget === "function" && typeof chooseScrollTargetForScreen === "function") {
         setPendingScrollTarget(chooseScrollTargetForScreen("p1"));
@@ -104,6 +119,7 @@ function installDelegatedFallback() {
     }
   }, true);
 }
+
 if (!state) {
   gameEl.textContent = "No game state found. Go back to setup.";
 } else {
