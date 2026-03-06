@@ -416,7 +416,7 @@ function scrollToTop() {
 -------------------------- */
 
 // ----- Scroll targeting (on screen changes only) -----
-let _pendingScrollTargetId = null;
+var _pendingScrollTargetId = null;
 
 function setPendingScrollTarget(id) {
   _pendingScrollTargetId = id;
@@ -473,7 +473,7 @@ function performPendingScroll() {
   else setTimeout(doScroll, 0);
 }
 
-let _lastScreen = null;
+var _lastScreen = null;
 function render() {
   const away = state.away;
   const home = state.home;
