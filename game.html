@@ -1,24 +1,16 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>B.O.T.D. — Game</title>
-  <link rel="stylesheet" href="style.css" />
+  <meta charset="UTF-8">
+  <title>Beware of the Dog - Game</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    button:disabled { opacity: 0.5; }
+  </style>
 </head>
 <body>
-  <header class="topbar">
-    <img class="logo" src="assets/botd-tag.png" alt="B.O.T.D. logo" />
-    <div>
-      <h1>B.O.T.D.</h1>
-      <p>Beware of the Dog — Hockey Night Game</p>
-    </div>
-  </header>
-
-  <main class="card">
-    <div id="game"></div>
-  </main>
-
+  <h1>Beware of the Dog</h1>
+  <div id="game">Loading...</div>
   <script src="game.js"></script>
 </body>
 </html>
