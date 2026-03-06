@@ -1,88 +1,38 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>B.O.T.D. — Beware of the Dog</title>
-  <link rel="stylesheet" href="style.css" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Beware of the Dog - Setup</title>
+    <style>
+      body { font-family: sans-serif; padding: 20px; }
+      label { display: block; margin-top: 8px; }
+      input, select { padding: 4px; margin-top: 4px; width: 200px; }
+      button { margin-top: 12px; padding: 8px 16px; }
+    </style>
 </head>
 <body>
-  <header class="topbar">
-    <img class="logo" src="assets/botd-tag.png" alt="B.O.T.D. logo" />
-    <div>
-      <h1>B.O.T.D.</h1>
-      <p>Beware of the Dog — Hockey Night Game</p>
-    </div>
-  </header>
+    <h1>Beware of the Dog - Setup</h1>
+    <label for="away">Away Team:</label>
+    <input id="away" placeholder="Away Team">
 
-  <main class="card">
-    <h2>Start</h2>
+    <label for="home">Home Team:</label>
+    <input id="home" placeholder="Home Team">
 
-    <!-- MODE -->
-    <label class="row">
-      <span>Game Mode</span>
-      <select id="mode">
-        <option value="house" selected>HOUSE (vs House)</option>
-        <option value="vs">VS (Player vs Player)</option>
-      </select>
-    </label>
+    <label for="mode">Mode:</label>
+    <select id="mode">
+        <option value="HOUSE">House</option>
+        <option value="VS">VS</option>
+    </select>
 
-    <div class="divider"></div>
+    <label for="player1">Player 1 Name:</label>
+    <input id="player1" placeholder="Player 1">
 
-    <!-- LEAGUE -->
-    <label class="row">
-      <span>League</span>
-      <select id="league">
-        <option value="nhl">NHL</option>
-        <option value="pwhl">PWHL</option>
-        <option value="olympics">Olympics</option>
-        <option value="other">Other</option>
-      </select>
-    </label>
+    <label for="house">House/Player 2 Name:</label>
+    <input id="house" placeholder="House or Player 2">
 
-    <label class="row">
-      <span>LIVE (use API)</span>
-      <input id="liveToggle" type="checkbox" />
-    </label>
+    <button id="startBtn">Start Game</button>
 
-    <div class="divider"></div>
-
-    <!-- TEAMS -->
-    <label class="row">
-      <span>AWAY</span>
-      <input id="away" placeholder="e.g., Kraken" />
-    </label>
-
-    <label class="row">
-      <span>HOME</span>
-      <input id="home" placeholder="e.g., Canucks" />
-    </label>
-
-    <div class="divider"></div>
-
-    <!-- PLAYERS -->
-    <label class="row">
-      <span id="p1Label">Player</span>
-      <input id="player1" placeholder="Player name" />
-    </label>
-
-    <label class="row">
-      <span id="p2Label">House</span>
-      <input id="house" placeholder="House / Dad / Mom" />
-    </label>
-
-    <label class="row">
-      <span>ANTE (task)</span>
-      <input id="ante" placeholder="e.g., Clean room 10 min" />
-    </label>
-
-    <button id="startBtn">START GAME</button>
-
-    <p class="note">
-      Tip: VS mode is symmetric — both players earn and spend 🐶 DOGs.
-    </p>
-  </main>
-
-  <script src="app.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>
