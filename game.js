@@ -570,6 +570,10 @@ function renderSideBySideQuestion({ title, questionText, leftName, rightName, le
 }
 
 function sealedYesNoSection({ idPrefix, lockedSelf, lockedOther, requireOtherLock, disabledAll = false, helperText = "Player locks first." }) {
+  // If this side was scratched, show a bone marker (not a lock) and no buttons
+  if (disabledAll) {
+    return `<div style="margin:8px 0;"><strong>🦴 Scratched</strong></div>`;
+  }
   const lockedUI = `<div style="margin:8px 0;"><strong>🔒 Locked</strong></div>`;
   if (lockedSelf) return lockedUI;
 
