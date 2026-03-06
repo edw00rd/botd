@@ -902,6 +902,10 @@ function renderPeriod(key, opts = {}) {
     const scratchesNow = scratchedList(side).length;
 
     const tileId = isVS ? `dogsSpendTile_${side}` : "dogsSpendTile";
+    const btnQ1 = isScratchedBy(side, "q1_goal") ? "" : `<button type="button" id="scratch_${prefix}q1">Scratch Q1 (Goal?)</button>`;
+    const btnQ2 = isScratchedBy(side, "q2_penalty") ? "" : `<button type="button" id="scratch_${prefix}q2">Scratch Q2 (Penalty?)</button>`;
+    const btnQ3 = isScratchedBy(side, "q3_both5sog") ? "" : `<button type="button" id="scratch_${prefix}q3">Scratch Q3 (Both 5+ SOG?)</button>`;
+
     return `
       <div id="${tileId}" style="margin-top:12px; border:1px solid #ddd; padding:10px; max-width:860px;">
         <div style="font-weight:800; margin-bottom:6px;">${sideLabel}: Spend DOGs 🐶</div>
@@ -912,9 +916,9 @@ function renderPeriod(key, opts = {}) {
           ${isP3 ? `<div style="margin-top:6px; font-size:0.9rem; opacity:0.75;">(Once Period 3 starts, leftover DOGs become void for that player.)</div>` : ""}
         </div>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
-          <button type="button" id="scratch_${prefix}q1">Scratch Q1 (Goal?)</button>
-          <button type="button" id="scratch_${prefix}q2">Scratch Q2 (Penalty?)</button>
-          <button type="button" id="scratch_${prefix}q3">Scratch Q3 (Both 5+ SOG?)</button>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            ${btnQ1}${btnQ2}${btnQ3}
+          </div>
         </div>
         <div style="margin-top:8px; font-size:0.9rem; opacity:0.75;">
           DOGs: ${renderDogs(dogsCount(side))} &nbsp; | &nbsp; Scratches: ${scratchesNow}/${maxScratches}
