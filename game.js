@@ -88,18 +88,18 @@ function installDelegatedFallback() {
 
     if (id === "toP1") {
       e.preventDefault(); e.stopPropagation();
-
-      // Enforce readiness here (button may be styled enabled)
+      // enforce readiness
       if (!state.pre?.q2?.lockedPlayer || !state.pre?.q2?.lockedHouse) {
         alert("Lock both Pre-Game Q2 answers to start Period 1.");
         return;
       }
-
       if (typeof commitStage === "function") commitStage("pregame");
       if (typeof setPendingScrollTarget === "function" && typeof chooseScrollTargetForScreen === "function") {
         setPendingScrollTarget(chooseScrollTargetForScreen("p1"));
       }
-      state.screen="p1"; render(); return;
+      state.screen="p1";
+      render();
+      return;
     }
     if (id === "toP2") {
       e.preventDefault(); e.stopPropagation();
@@ -120,47 +120,6 @@ function installDelegatedFallback() {
   }, true);
 }
 
-// ---------- Ultra-reliable nav helper (inline onclick can call this) ----------
-window.__botdGoto = function(screen) {
-  try {
-    // Basic guard: if state is missing, go back to setup
-    if (!state) { window.location.href = "index.html"; return; }
-
-    if (screen === "p1") {
-      // Enforce readiness for Period 1
-      if (!state.pre?.q2?.lockedPlayer || !state.pre?.q2?.lockedHouse) {
-        alert("Lock both Pre-Game Q2 answers to start Period 1.");
-        return;
-      }
-      if (typeof commitStage === "function") commitStage("pregame");
-      if (typeof setPendingScrollTarget === "function" && typeof chooseScrollTargetForScreen === "function") {
-        setPendingScrollTarget(chooseScrollTargetForScreen("p1"));
-      }
-    }
-
-    if (screen === "p2") {
-      if (typeof commitStage === "function") commitStage("p1");
-      if (typeof setPendingScrollTarget === "function" && typeof chooseScrollTargetForScreen === "function") {
-        setPendingScrollTarget(chooseScrollTargetForScreen("p2"));
-      }
-    }
-
-    if (screen === "p3") {
-      if (typeof commitStage === "function") commitStage("p2");
-      if (typeof setPendingScrollTarget === "function" && typeof chooseScrollTargetForScreen === "function") {
-        setPendingScrollTarget(chooseScrollTargetForScreen("p3"));
-      }
-    }
-
-    state.screen = screen;
-    render();
-  } catch (e) {
-    console.error("BOTD nav error:", e);
-    alert("BOTD error: " + (e?.message ?? e));
-  }
-};
-// ---------------------------------------------------------------------------
-
 if (!state) {
   gameEl.textContent = "No game state found. Go back to setup.";
 } else {
@@ -169,7 +128,7 @@ if (!state) {
 
   // Core
   state.score = state.score ?? { player: 0, house: 0 };
-  
+
 // Mode: "HOUSE" (default) or "VS" (symmetric)
 state.mode = (state.mode ?? "HOUSE").toString().trim().toUpperCase();
   if (state.mode !== "VS") state.mode = "HOUSE";
@@ -201,41 +160,101 @@ if (state.mode === "VS") {
   // Routing
   state.screen = state.screen ?? "pre_q1"; // pre_q1 -> pre_q2 -> p1 -> p2 -> p3 -> goodboy? -> regulation -> ot -> so -> postgame
 
-  // Commit flags (lock-in points) — must be an object (old saves may have booleans/strings)
-  state.committed = (state.committed && typeof state.committed === "object") ? state.committed : {};
+  // Commit flags (lock-in points)
+  if (typeof state.committed !== 'object' || state.committed === null) {
+    state.committed = {};
+  }
   state.committed.pregame = !!state.committed.pregame;
   state.committed.p1 = !!state.committed.p1;
   state.committed.p2 = !!state.committed.p2;
   state.committed.p3 = !!state.committed.p3;
 
-  // Undo stacks — normalize (old saves may have bad shapes)
-  state.undo = (state.undo && typeof state.undo === "object") ? state.undo : {};
+  // Undo stacks
+  if (typeof state.undo !== 'object' || state.undo === null) {
+    state.undo = {};
+  }
   state.undo.pre_q2 = Array.isArray(state.undo.pre_q2) ? state.undo.pre_q2 : [];
   state.undo.p1 = Array.isArray(state.undo.p1) ? state.undo.p1 : [];
   state.undo.p2 = Array.isArray(state.undo.p2) ? state.undo.p2 : [];
   state.undo.p3 = Array.isArray(state.undo.p3) ? state.undo.p3 : [];
   state.undo.goodboy = Array.isArray(state.undo.goodboy) ? state.undo.goodboy : [];
 
-  state.undoSig = (state.undoSig && typeof state.undoSig === "object") ? state.undoSig : {};
-  state.undoSig.pre_q2 = (typeof state.undoSig.pre_q2 === "string") ? state.undoSig.pre_q2 : null;
-  state.undoSig.p1 = (typeof state.undoSig.p1 === "string") ? state.undoSig.p1 : null;
-  state.undoSig.p2 = (typeof state.undoSig.p2 === "string") ? state.undoSig.p2 : null;
-  state.undoSig.p3 = (typeof state.undoSig.p3 === "string") ? state.undoSig.p3 : null;
-  state.undoSig.goodboy = (typeof state.undoSig.goodboy === "string") ? state.undoSig.goodboy : null;
+  // Undo signatures
+  if (typeof state.undoSig !== 'object' || state.undoSig === null) {
+    state.undoSig = {};
+  }
+  state.undoSig.pre_q2 = state.undoSig.pre_q2 ?? null;
+  state.undoSig.p1 = state.undoSig.p1 ?? null;
+  state.undoSig.p2 = state.undoSig.p2 ?? null;
+  state.undoSig.p3 = state.undoSig.p3 ?? null;
+  state.undoSig.goodboy = state.undoSig.goodboy ?? null;
 
   // Shots-on-goal tracking (totals)
   state.sog = state.sog ?? { start: { away: 0, home: 0 }, end: { away: 0, home: 0 } };
 
   // Pre-game answers
   state.pre = state.pre ?? {};
-  state.pre.q1 = state.pre.q1 ?? mkPickState(); // Away/Home
-  state.pre.q2 = state.pre.q2 ?? mkPickState(); // Yes/No
+  // Normalize q1 and q2 objects; replace if malformed
+  const mkSafePickState = () => ({ player: null, house: null, lockedPlayer: false, lockedHouse: false });
+  if (typeof state.pre.q1 !== 'object' || state.pre.q1 === null || typeof state.pre.q1.lockedPlayer === 'undefined') {
+    state.pre.q1 = mkSafePickState();
+  }
+  if (typeof state.pre.q2 !== 'object' || state.pre.q2 === null || typeof state.pre.q2.lockedPlayer === 'undefined') {
+    state.pre.q2 = mkSafePickState();
+  }
 
   // Periods
   state.periods = state.periods ?? {};
-  state.periods.p1 = state.periods.p1 ?? mkPeriodState(1);
-  state.periods.p2 = state.periods.p2 ?? mkPeriodState(2);
-  state.periods.p3 = state.periods.p3 ?? mkPeriodState(3);
+  // Ensure each period is proper object; if not, reset
+  const mkPeriodState = (n) => ({
+    n,
+    dogSpend: {
+      used: false,
+      scratched: null,
+      scratchedList: [],
+      voided: false
+    },
+    picks: {
+      q1_goal: mkSafePickState(),
+      q2_penalty: mkSafePickState(),
+      q3_both5sog: mkSafePickState()
+    },
+    results: {
+      goal: null,
+      penalty: null,
+      endSogAway: null,
+      endSogHome: null
+    },
+    lockedResults: false,
+    computed: null
+  });
+  const periodsKeys = ['p1','p2','p3'];
+  periodsKeys.forEach((key,i) => {
+    const val = state.periods[key];
+    if (typeof val !== 'object' || val === null || typeof val.picks !== 'object') {
+      state.periods[key] = mkPeriodState(i+1);
+    } else {
+      // ensure picks exist
+      if (typeof val.picks !== 'object') val.picks = {};
+      ['q1_goal','q2_penalty','q3_both5sog'].forEach(q => {
+        if (typeof val.picks[q] !== 'object' || typeof val.picks[q].lockedPlayer === 'undefined') {
+          val.picks[q] = mkSafePickState();
+        }
+      });
+      // ensure dogSpend shape
+      if (typeof val.dogSpend !== 'object' || val.dogSpend === null) {
+        val.dogSpend = { used: false, scratched: null, scratchedList: [], voided: false };
+      } else {
+        val.dogSpend.scratchedList = Array.isArray(val.dogSpend.scratchedList) ? val.dogSpend.scratchedList : [];
+        val.dogSpend.used = !!val.dogSpend.used;
+        val.dogSpend.voided = !!val.dogSpend.voided;
+      }
+      // ensure results
+      if (typeof val.results !== 'object' || val.results === null) {
+        val.results = { goal: null, penalty: null, endSogAway: null, endSogHome: null };
+      }
+    }
+  });
 
   // Ensure P3 has the new latch fields even for old saves
   state.periods.p3.dogSpend = state.periods.p3.dogSpend ?? { used: false, scratched: null, voided: false };
@@ -256,6 +275,10 @@ if (state.mode === "VS") {
     target: null,            // label
     housePointRemoved: false // true/false
   };
+
+  // Sanitize period objects (defined later) to avoid corruption from old saves.
+  // We'll call sanitizePeriods() after state initialization; see its definition below.
+  sanitizePeriods();
 
   installDelegatedFallback();
   render();
@@ -298,6 +321,21 @@ function mkPeriodState(n) {
 
 function clone(obj) {
   return JSON.parse(JSON.stringify(obj));
+}
+
+// Ensure each period object is properly shaped. Older or malformed localStorage
+// entries may store non-object values (or missing picks/results) for period
+// states. This helper resets any invalid period to a fresh mkPeriodState.
+function sanitizePeriods() {
+  if (!state.periods || typeof state.periods !== "object") state.periods = {};
+  const keys = ["p1", "p2", "p3"];
+  keys.forEach((key, idx) => {
+    const expectedN = idx + 1;
+    const p = state.periods[key];
+    if (!p || typeof p !== "object" || !p.picks || !p.results) {
+      state.periods[key] = mkPeriodState(expectedN);
+    }
+  });
 }
 
 function saveState() {
@@ -356,20 +394,11 @@ function tryUndo(key, applyFn) {
 }
 
 function commitStage(stageKey) {
-  // Defensive: old saves may have bad shapes (booleans/strings) for committed/undo/undoSig.
-  // If commitStage throws, nav buttons (like "Start Period 1") will look dead.
-  if (!state.committed || typeof state.committed !== "object") {
-    state.committed = { pregame: false, p1: false, p2: false, p3: false };
+  // Ensure committed object exists and proper keys
+  if (typeof state.committed !== 'object' || state.committed === null) {
+    state.committed = {};
   }
-  if (!state.undo || typeof state.undo !== "object") {
-    state.undo = { pre_q2: [], p1: [], p2: [], p3: [], goodboy: [] };
-  }
-  if (!state.undoSig || typeof state.undoSig !== "object") {
-    state.undoSig = { pre_q2: null, p1: null, p2: null, p3: null, goodboy: null };
-  }
-
   state.committed[stageKey] = true;
-
   if (stageKey === "pregame") { state.undo.pre_q2 = []; state.undoSig.pre_q2 = null; }
   if (stageKey === "p1") { state.undo.p1 = []; state.undoSig.p1 = null; }
   if (stageKey === "p2") { state.undo.p2 = []; state.undoSig.p2 = null; }
@@ -772,7 +801,7 @@ function renderPreQ2() {
   const backHTML = `<button type="button" id="backToQ1">Back</button>`;
   const canContinue = (q2.lockedPlayer && q2.lockedHouse);
   const continueHTML = `
-    <button type="button" id="toP1" onclick="window.__botdGoto && window.__botdGoto(\'p1\')">Start Period 1</button>
+    <button type="button" id="toP1">Start Period 1</button>
     ${canContinue ? "" : `<div style="margin-top:6px; font-size:0.95rem; opacity:0.8;">Lock both answers to start Period 1.</div>`}
   `;
 
@@ -1842,6 +1871,8 @@ function wireHandlers() {
       alert("Lock both Pre-Game Q2 answers to start Period 1.");
       return;
     }
+    // ensure periods are valid before transitioning
+    if (typeof sanitizePeriods === "function") sanitizePeriods();
     commitStage("pregame");
     setPendingScrollTarget(chooseScrollTargetForScreen("p1"));
     state.screen = "p1";
@@ -1849,10 +1880,19 @@ function wireHandlers() {
   };
 
   const toP2 = document.getElementById("toP2");
-  if (toP2) toP2.onclick = () => { commitStage("p1"); setPendingScrollTarget(chooseScrollTargetForScreen("p2")); state.screen = "p2"; render(); };
+  if (toP2) toP2.onclick = () => {
+    // ensure periods are valid before transitioning
+    if (typeof sanitizePeriods === "function") sanitizePeriods();
+    commitStage("p1");
+    setPendingScrollTarget(chooseScrollTargetForScreen("p2"));
+    state.screen = "p2";
+    render();
+  };
 
   const toP3 = document.getElementById("toP3");
   if (toP3) toP3.onclick = () => {
+    // ensure periods are valid before transitioning
+    if (typeof sanitizePeriods === "function") sanitizePeriods();
     commitStage("p2");
 
     const p3 = state.periods.p3;
