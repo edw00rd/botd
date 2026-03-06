@@ -120,6 +120,47 @@ function installDelegatedFallback() {
   }, true);
 }
 
+// ---------- Ultra-reliable nav helper (inline onclick can call this) ----------
+window.__botdGoto = function(screen) {
+  try {
+    // Basic guard: if state is missing, go back to setup
+    if (!state) { window.location.href = "index.html"; return; }
+
+    if (screen === "p1") {
+      // Enforce readiness for Period 1
+      if (!state.pre?.q2?.lockedPlayer || !state.pre?.q2?.lockedHouse) {
+        alert("Lock both Pre-Game Q2 answers to start Period 1.");
+        return;
+      }
+      if (typeof commitStage === "function") commitStage("pregame");
+      if (typeof setPendingScrollTarget === "function" && typeof chooseScrollTargetForScreen === "function") {
+        setPendingScrollTarget(chooseScrollTargetForScreen("p1"));
+      }
+    }
+
+    if (screen === "p2") {
+      if (typeof commitStage === "function") commitStage("p1");
+      if (typeof setPendingScrollTarget === "function" && typeof chooseScrollTargetForScreen === "function") {
+        setPendingScrollTarget(chooseScrollTargetForScreen("p2"));
+      }
+    }
+
+    if (screen === "p3") {
+      if (typeof commitStage === "function") commitStage("p2");
+      if (typeof setPendingScrollTarget === "function" && typeof chooseScrollTargetForScreen === "function") {
+        setPendingScrollTarget(chooseScrollTargetForScreen("p3"));
+      }
+    }
+
+    state.screen = screen;
+    render();
+  } catch (e) {
+    console.error("BOTD nav error:", e);
+    alert("BOTD error: " + (e?.message ?? e));
+  }
+};
+// ---------------------------------------------------------------------------
+
 if (!state) {
   gameEl.textContent = "No game state found. Go back to setup.";
 } else {
@@ -160,17 +201,27 @@ if (state.mode === "VS") {
   // Routing
   state.screen = state.screen ?? "pre_q1"; // pre_q1 -> pre_q2 -> p1 -> p2 -> p3 -> goodboy? -> regulation -> ot -> so -> postgame
 
-  // Commit flags (lock-in points)
-  state.committed = state.committed ?? {
-    pregame: false,
-    p1: false,
-    p2: false,
-    p3: false
-  };
+  // Commit flags (lock-in points) — must be an object (old saves may have booleans/strings)
+  state.committed = (state.committed && typeof state.committed === "object") ? state.committed : {};
+  state.committed.pregame = !!state.committed.pregame;
+  state.committed.p1 = !!state.committed.p1;
+  state.committed.p2 = !!state.committed.p2;
+  state.committed.p3 = !!state.committed.p3;
 
-  // Undo stacks
-  state.undo = state.undo ?? { pre_q2: [], p1: [], p2: [], p3: [], goodboy: [] };
-  state.undoSig = state.undoSig ?? { pre_q2: null, p1: null, p2: null, p3: null, goodboy: null };
+  // Undo stacks — normalize (old saves may have bad shapes)
+  state.undo = (state.undo && typeof state.undo === "object") ? state.undo : {};
+  state.undo.pre_q2 = Array.isArray(state.undo.pre_q2) ? state.undo.pre_q2 : [];
+  state.undo.p1 = Array.isArray(state.undo.p1) ? state.undo.p1 : [];
+  state.undo.p2 = Array.isArray(state.undo.p2) ? state.undo.p2 : [];
+  state.undo.p3 = Array.isArray(state.undo.p3) ? state.undo.p3 : [];
+  state.undo.goodboy = Array.isArray(state.undo.goodboy) ? state.undo.goodboy : [];
+
+  state.undoSig = (state.undoSig && typeof state.undoSig === "object") ? state.undoSig : {};
+  state.undoSig.pre_q2 = (typeof state.undoSig.pre_q2 === "string") ? state.undoSig.pre_q2 : null;
+  state.undoSig.p1 = (typeof state.undoSig.p1 === "string") ? state.undoSig.p1 : null;
+  state.undoSig.p2 = (typeof state.undoSig.p2 === "string") ? state.undoSig.p2 : null;
+  state.undoSig.p3 = (typeof state.undoSig.p3 === "string") ? state.undoSig.p3 : null;
+  state.undoSig.goodboy = (typeof state.undoSig.goodboy === "string") ? state.undoSig.goodboy : null;
 
   // Shots-on-goal tracking (totals)
   state.sog = state.sog ?? { start: { away: 0, home: 0 }, end: { away: 0, home: 0 } };
@@ -305,7 +356,20 @@ function tryUndo(key, applyFn) {
 }
 
 function commitStage(stageKey) {
+  // Defensive: old saves may have bad shapes (booleans/strings) for committed/undo/undoSig.
+  // If commitStage throws, nav buttons (like "Start Period 1") will look dead.
+  if (!state.committed || typeof state.committed !== "object") {
+    state.committed = { pregame: false, p1: false, p2: false, p3: false };
+  }
+  if (!state.undo || typeof state.undo !== "object") {
+    state.undo = { pre_q2: [], p1: [], p2: [], p3: [], goodboy: [] };
+  }
+  if (!state.undoSig || typeof state.undoSig !== "object") {
+    state.undoSig = { pre_q2: null, p1: null, p2: null, p3: null, goodboy: null };
+  }
+
   state.committed[stageKey] = true;
+
   if (stageKey === "pregame") { state.undo.pre_q2 = []; state.undoSig.pre_q2 = null; }
   if (stageKey === "p1") { state.undo.p1 = []; state.undoSig.p1 = null; }
   if (stageKey === "p2") { state.undo.p2 = []; state.undoSig.p2 = null; }
@@ -708,7 +772,7 @@ function renderPreQ2() {
   const backHTML = `<button type="button" id="backToQ1">Back</button>`;
   const canContinue = (q2.lockedPlayer && q2.lockedHouse);
   const continueHTML = `
-    <button type="button" id="toP1">Start Period 1</button>
+    <button type="button" id="toP1" onclick="window.__botdGoto && window.__botdGoto(\'p1\')">Start Period 1</button>
     ${canContinue ? "" : `<div style="margin-top:6px; font-size:0.95rem; opacity:0.8;">Lock both answers to start Period 1.</div>`}
   `;
 
