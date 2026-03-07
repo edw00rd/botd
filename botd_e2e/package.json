@@ -1,0 +1,16 @@
+{
+  "name": "botd-e2e",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "serve": "http-server -p 8080 -c-1 .",
+    "e2e:local": "node ./scripts/run-local-e2e.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.46.0",
+    "http-server": "^14.1.1"
+  }
+}
