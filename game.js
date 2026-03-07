@@ -570,11 +570,9 @@ function renderSideBySideQuestion({ title, questionText, leftName, rightName, le
 }
 
 function sealedYesNoSection({ idPrefix, lockedSelf, lockedOther, requireOtherLock, disabledAll = false, helperText = "Player locks first." }) {
-  // If this side was scratched, show a bone marker (not a lock) and no buttons
-  if (disabledAll) {
-    return `<div style="margin:8px 0;"><strong>🦴 Scratched</strong></div>`;
-  }
   const lockedUI = `<div style="margin:8px 0;"><strong>🔒 Locked</strong></div>`;
+  // If this side was scratched, show a bone so it’s distinct from a normal lock.
+  if (disabledAll) return `<div style="margin:8px 0;"><strong>🦴 Scratched</strong></div>`;
   if (lockedSelf) return lockedUI;
 
   const disabled = disabledAll || (requireOtherLock && !lockedOther) ? "disabled" : "";
@@ -902,10 +900,6 @@ function renderPeriod(key, opts = {}) {
     const scratchesNow = scratchedList(side).length;
 
     const tileId = isVS ? `dogsSpendTile_${side}` : "dogsSpendTile";
-    const btnQ1 = isScratchedBy(side, "q1_goal") ? "" : `<button type="button" id="scratch_${prefix}q1">Scratch Q1 (Goal?)</button>`;
-    const btnQ2 = isScratchedBy(side, "q2_penalty") ? "" : `<button type="button" id="scratch_${prefix}q2">Scratch Q2 (Penalty?)</button>`;
-    const btnQ3 = isScratchedBy(side, "q3_both5sog") ? "" : `<button type="button" id="scratch_${prefix}q3">Scratch Q3 (Both 5+ SOG?)</button>`;
-
     return `
       <div id="${tileId}" style="margin-top:12px; border:1px solid #ddd; padding:10px; max-width:860px;">
         <div style="font-weight:800; margin-bottom:6px;">${sideLabel}: Spend DOGs 🐶</div>
@@ -916,9 +910,9 @@ function renderPeriod(key, opts = {}) {
           ${isP3 ? `<div style="margin-top:6px; font-size:0.9rem; opacity:0.75;">(Once Period 3 starts, leftover DOGs become void for that player.)</div>` : ""}
         </div>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
-          <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            ${btnQ1}${btnQ2}${btnQ3}
-          </div>
+          ${isScratchedBy(side,"q1_goal") ? "" : ('<button type="button" id="scratch_' + prefix + 'q1">Scratch Q1 (Goal?)</button>')}
+          ${isScratchedBy(side,"q2_penalty") ? "" : ('<button type="button" id="scratch_' + prefix + 'q2">Scratch Q2 (Penalty?)</button>')}
+          ${isScratchedBy(side,"q3_both5sog") ? "" : ('<button type="button" id="scratch_' + prefix + 'q3">Scratch Q3 (Both 5+ SOG?)</button>')}
         </div>
         <div style="margin-top:8px; font-size:0.9rem; opacity:0.75;">
           DOGs: ${renderDogs(dogsCount(side))} &nbsp; | &nbsp; Scratches: ${scratchesNow}/${maxScratches}
@@ -2017,6 +2011,47 @@ function wireRegulationButtons() {
         return;
       }
 
+
+const totalGoals = a + h;
+
+// Sanity: PP goal requires at least one goal scored.
+if (reg.ppGoal === "Yes" && totalGoals === 0) {
+  alert("PP Goal cannot be Yes if the regulation score is 0–0.");
+  return;
+}
+
+// Minimum goals implied by per-period truth values (Goals? = Yes => at least 1 goal that period).
+const periodKeys = ["p1", "p2", "p3"];
+let periodsWithGoals = 0;
+for (const pk of periodKeys) {
+  const g = state.periods?.[pk]?.results?.goal;
+  if (g === "Yes") periodsWithGoals += 1;
+}
+
+if (totalGoals > 0 && periodsWithGoals === 0) {
+  alert("Regulation goals indicate at least 1 goal, but all periods were marked Goals? = No. Fix period results or regulation score.");
+  return;
+}
+
+if (totalGoals < periodsWithGoals) {
+  alert(`Regulation goals (${totalGoals}) must be at least the number of periods marked Goals? = Yes (${periodsWithGoals}).`);
+  return;
+}
+
+// Sanity: total SOG through Period 3 must be >= total goals (each goal is a SOG).
+const endAwaySog = Number.isFinite(state.sog?.end?.away) ? state.sog.end.away
+  : (Number.isFinite(state.sog?.start?.away) ? state.sog.start.away : null);
+const endHomeSog = Number.isFinite(state.sog?.end?.home) ? state.sog.end.home
+  : (Number.isFinite(state.sog?.start?.home) ? state.sog.start.home : null);
+
+if (Number.isFinite(endAwaySog) && Number.isFinite(endHomeSog)) {
+  const totalSog = endAwaySog + endHomeSog;
+  if (totalSog < totalGoals) {
+    alert(`Total SOG (${totalSog}) cannot be less than total goals (${totalGoals}). Check SOG totals and regulation score.`);
+    return;
+  }
+}
+
       reg.awayGoals = a;
       reg.homeGoals = h;
       reg.draftAwayGoals = a;
@@ -2419,6 +2454,12 @@ function wirePeriodButtons(key) {
         alert("End SOG cannot be less than start SOG. Check totals.");
         return;
       }
+
+// Sanity: a goal implies at least one shot on goal was recorded this period.
+if (r.goal === "Yes" && (periodAway + periodHome) < 1) {
+  alert("If Goals? is Yes, total SOG this period must be at least 1. Check end SOG totals.");
+  return;
+}
 
       const q3Truth = (periodAway >= 5 && periodHome >= 5) ? "Yes" : "No";
 
