@@ -69,8 +69,17 @@ test('HOUSE mode: complete a full game flow to Postgame', async ({ page }) => {
   await page.click('#p3_lockResults');
   await page.click('#toGoodBoy');
 
-  // Should go to regulation (HOUSE mode only earns goodboy when player wins P3; we forced tie/house tie)
-  await expect(page).toHaveURL(/regulation|goodboy/i);
+  // After P3, the game stays on game.html (single-page), but the internal "screen" should switch
+// to either Regulation or Good Boy.
+await page.waitForFunction(() => {
+  try {
+    const st = JSON.parse(localStorage.getItem('botd_state') || '{}');
+    return st.screen === 'regulation';
+  } catch (e) {
+    return false;
+  }
+});
+
 
   // Regulation: not tied, award pregame points and go postgame
   await page.fill('#regAwayGoals', '3');
