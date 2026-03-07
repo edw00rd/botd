@@ -3,28 +3,51 @@ name: BOTD E2E
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 jobs:
   e2e:
     runs-on: ubuntu-latest
+
     defaults:
       run:
         working-directory: botd_e2e
-    steps:
-      - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: 20
 
       - name: Install deps
-        run: npm ci
+        run: npm install
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
 
-      - name: Run E2E tests
-        run: npx playwright test
+      - name: Start server for repo root (serves ../index.html, ../game.html)
+        run: |
+          npm i -g http-server
+          http-server .. -p 8080 &
+          sleep 2
+
+      - name: Run tests
+        env:
+          BASE_URL: http://127.0.0.1:8080
+        run: npx playwright test --reporter=html
+
+      - name: Debug (only if failing)
+        if: failure()
+        run: |
+          echo "---- pwd ----"
+          pwd
+          echo "---- ls botd_e2e ----"
+          ls -la
+          echo "---- ls playwright-report ----"
+          ls -la playwright-report || true
 
       - name: Upload report
         if: always()
