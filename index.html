@@ -1,36 +1,64 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Beware of the Dog - Setup</title>
-    <link rel="stylesheet" href="style.css">  
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Beware of the Dog - Setup</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
-<body>
-    <h1>Beware of the Dog - Setup</h1>
-    <label for="away">Away Team:</label>
-    <input id="away" placeholder="Away Team">
+<body class="setup-page">
+  <div class="site-bg" aria-hidden="true"></div>
 
-    <label for="home">Home Team:</label>
-    <input id="home" placeholder="Home Team">
+  <div class="page-shell">
+    <header class="topbar">
+      <h1>Beware of the Dog</h1>
+      <p class="subtitle">Game Setup</p>
+    </header>
 
-    <label for="mode">Mode:</label>
-    <select id="mode">
-        <option value="HOUSE">House</option>
-        <option value="VS">VS</option>
-    </select>
+    <main class="setup-shell">
+      <section class="setup-card">
+        <form class="setup-form" onsubmit="return false;">
+          <div class="form-row">
+            <label for="away">Away Team</label>
+            <input id="away" placeholder="Away Team" />
+          </div>
 
-    <label for="player1">Player 1 Name:</label>
-    <input id="player1" placeholder="Player 1">
+          <div class="form-row">
+            <label for="home">Home Team</label>
+            <input id="home" placeholder="Home Team" />
+          </div>
 
-    <label for="house">House/Player 2 Name:</label>
-    <input id="house" placeholder="House or Player 2">
+          <div class="form-row">
+            <label for="mode">Mode</label>
+            <select id="mode">
+              <option value="HOUSE">House</option>
+              <option value="VS">VS</option>
+            </select>
+          </div>
 
-    <label for="ante">ANTE:</label>
-    <input id="ante" placeholder="e.g., $5 / chores / push-ups">
+          <div class="form-row">
+            <label for="player1">Player 1 Name</label>
+            <input id="player1" placeholder="Player 1" />
+          </div>
 
-    <button id="startBtn">Start Game</button>
+          <div class="form-row">
+            <label for="house">House / Player 2 Name</label>
+            <input id="house" placeholder="House or Player 2" />
+          </div>
 
-    <script src="app.js"></script>
+          <div class="form-row">
+            <label for="ante">Ante</label>
+            <input id="ante" placeholder="e.g., $5 / chores / push-ups" />
+          </div>
+
+          <div class="form-actions">
+            <button id="startBtn" type="button">Start Game</button>
+          </div>
+        </form>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
 </body>
 </html>
