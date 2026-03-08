@@ -1,16 +1,25 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Beware of the Dog - Game</title>
-  <style>
-    body { font-family: sans-serif; padding: 20px; }
-    button:disabled { opacity: 0.5; }
-  </style>
+  <link rel="stylesheet" href="style.css" />
 </head>
-<body>
-  <h1>Beware of the Dog</h1>
-  <div id="game">Loading...</div>
+<body class="game-page">
+  <div class="site-bg" aria-hidden="true"></div>
+
+  <div class="page-shell">
+    <header class="topbar">
+      <h1>Beware of the Dog</h1>
+      <p class="subtitle">Live Game</p>
+    </header>
+
+    <main class="game-shell">
+      <div id="game">Loading...</div>
+    </main>
+  </div>
+
   <script src="game.js"></script>
 </body>
 </html>
