@@ -1,197 +1,255 @@
-/* =========================================================
-   BOTD v1 — "Ice + Hazard" theme
-   Drop-in replacement for style.css
-   ========================================================= */
-
-/* ---------- Theme tokens ---------- */
-:root{
-  --bg: #f6f7fb;
-  --bg2:#eef2ff;
-  --card:#ffffff;
-  --text:#0f172a;
-  --muted:#475569;
-  --border: rgba(15, 23, 42, 0.12);
-
-  --accent:#f97316;   /* dog/hazard orange */
-  --accent2:#38bdf8;  /* ice blue */
-  --good:#22c55e;
-  --warn:#f59e0b;
-  --bad:#ef4444;
-
-  --shadow: 0 14px 30px rgba(15, 23, 42, 0.10);
-  --shadow2: 0 8px 18px rgba(15, 23, 42, 0.10);
-  --radius: 16px;
-  --radius-sm: 12px;
+:root {
+  --text: #eef4ff;
+  --muted: #a9b8cc;
+  --panel: rgba(10, 14, 22, 0.80);
+  --panel-2: rgba(18, 24, 36, 0.88);
+  --line: rgba(255, 255, 255, 0.12);
+  --input-bg: rgba(255, 255, 255, 0.06);
+  --input-focus: rgba(255, 255, 255, 0.10);
+  --shadow: 0 18px 45px rgba(0, 0, 0, 0.40);
+  --shadow-soft: 0 10px 28px rgba(0, 0, 0, 0.28);
+  --radius: 24px;
+  --radius-md: 18px;
+  --radius-sm: 14px;
 }
 
-@media (prefers-color-scheme: dark){
-  :root{
-    --bg:#0b1220;
-    --bg2:#0f172a;
-    --card:#0b1220;
-    --text:#e5e7eb;
-    --muted:#94a3b8;
-    --border: rgba(148, 163, 184, 0.22);
-    --shadow: 0 18px 42px rgba(0,0,0,0.35);
-    --shadow2: 0 10px 24px rgba(0,0,0,0.30);
-  }
+* {
+  box-sizing: border-box;
 }
 
-/* ---------- Base ---------- */
-*{ box-sizing:border-box; }
-html, body{ height:100%; }
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
 
-body{
-  margin:0;
-  color:var(--text);
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
-  line-height:1.4;
+body {
+  min-height: 100vh;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  color: var(--text);
+  background: #081018;
+  position: relative;
+  overflow-x: hidden;
+}
+
+.site-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
   background:
-    radial-gradient(1200px 700px at 10% 10%, rgba(56,189,248,0.14), transparent 55%),
-    radial-gradient(900px 600px at 90% 20%, rgba(249,115,22,0.14), transparent 55%),
-    linear-gradient(180deg, var(--bg), var(--bg2));
-  padding: 22px;
+    linear-gradient(rgba(5, 8, 14, 0.34), rgba(5, 8, 14, 0.58)),
+    url("bgimages/bg1.jpg") center center / cover no-repeat fixed;
 }
 
-/* Center the app content a bit */
-#game{
-  max-width: 980px;
+.site-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at top center, rgba(255,255,255,0.06), transparent 35%),
+    linear-gradient(to bottom, rgba(0,0,0,0.10), rgba(0,0,0,0.26));
+}
+
+.page-shell {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.topbar {
+  width: min(100%, 1100px);
+  margin: 0 auto;
+  padding: 18px 22px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: rgba(10, 14, 22, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--shadow);
+}
+
+.topbar h1 {
+  margin: 0;
+  font-size: clamp(1.9rem, 3vw, 2.7rem);
+  line-height: 1.05;
+  letter-spacing: 0.01em;
+}
+
+.subtitle {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.98rem;
+}
+
+.setup-shell,
+.game-shell {
+  width: min(100%, 1100px);
   margin: 0 auto;
 }
 
-/* Make the big “panels” look like cards even if they have inline borders */
-#game > div,
-#game > div > div{
+.setup-shell {
+  display: flex;
+  justify-content: center;
+}
+
+.setup-card,
+.game-shell {
+  border: 1px solid var(--line);
   border-radius: var(--radius);
+  background: var(--panel);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: var(--shadow);
 }
 
-/* Improve the look of your existing inline bordered boxes */
-#game div[style*="border:1px solid"]{
-  background: var(--card);
-  border-color: var(--border) !important;
-  box-shadow: var(--shadow2);
+.setup-card {
+  width: min(100%, 760px);
+  padding: 24px;
 }
 
-/* Typography */
-h1,h2,h3,h4{
-  letter-spacing: 0.2px;
-}
-h1{
-  font-size: 2rem;
-  margin: 0 0 10px 0;
-}
-h2{
-  font-size: 1.6rem;
-}
-h3{
-  font-size: 1.25rem;
-}
-p{
-  color: color-mix(in srgb, var(--text) 92%, var(--muted));
+.game-shell {
+  padding: 20px;
 }
 
-/* ---------- Inputs ---------- */
-input, select{
-  width: 100%;
-  max-width: 340px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  background: color-mix(in srgb, var(--card) 92%, var(--bg));
-  color: var(--text);
-  box-shadow: 0 2px 0 rgba(0,0,0,0.02);
-  outline: none;
-}
-input::placeholder{ color: color-mix(in srgb, var(--muted) 80%, transparent); }
-
-input:focus, select:focus{
-  border-color: color-mix(in srgb, var(--accent2) 80%, var(--border));
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent2) 20%, transparent);
+.setup-form {
+  display: grid;
+  gap: 16px;
 }
 
-/* Checkboxes */
-input[type="checkbox"]{
-  width: 18px;
-  height: 18px;
-  accent-color: var(--accent2);
+.form-row {
+  display: grid;
+  gap: 8px;
 }
 
-/* Labels */
-label{
-  color: var(--muted);
-}
-
-/* ---------- Buttons ---------- */
-button{
-  appearance:none;
-  border: 1px solid var(--border);
-  background:
-    linear-gradient(180deg,
-      color-mix(in srgb, var(--card) 92%, var(--bg)),
-      color-mix(in srgb, var(--card) 80%, var(--bg))
-    );
-  color: var(--text);
-  padding: 10px 14px;
-  border-radius: 14px;
-  cursor: pointer;
+label {
+  font-size: 0.96rem;
   font-weight: 700;
-  letter-spacing: 0.2px;
-  box-shadow: 0 8px 18px rgba(15,23,42,0.08);
-  transition: transform 90ms ease, box-shadow 160ms ease, border-color 160ms ease, filter 160ms ease;
+  letter-spacing: 0.02em;
+  color: var(--text);
 }
 
-button:hover{
+input,
+select {
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--input-bg);
+  color: var(--text);
+  font: inherit;
+  outline: none;
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.12s ease;
+}
+
+input::placeholder {
+  color: rgba(191, 208, 230, 0.60);
+}
+
+input:focus,
+select:focus {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: var(--input-focus);
+}
+
+.form-actions {
+  padding-top: 8px;
+}
+
+button {
+  appearance: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 14px 20px;
+  background: linear-gradient(
+    180deg,
+    rgba(255,255,255,0.14),
+    rgba(255,255,255,0.06)
+  );
+  color: var(--text);
+  font: inherit;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.22);
+  transition: transform 0.12s ease, border-color 0.2s ease, background 0.2s ease, opacity 0.2s ease;
+}
+
+button:hover {
   transform: translateY(-1px);
-  border-color: color-mix(in srgb, var(--accent2) 40%, var(--border));
-  box-shadow: 0 12px 24px rgba(15,23,42,0.12);
+  border-color: rgba(255,255,255,0.22);
 }
 
-button:active{
-  transform: translateY(0px);
-  filter: brightness(0.98);
+button:active {
+  transform: translateY(0);
 }
 
-button:disabled{
+button:disabled {
   opacity: 0.55;
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
 }
 
-/* Primary-looking action buttons (if you later add class="primary") */
-button.primary{
-  border-color: color-mix(in srgb, var(--accent2) 55%, var(--border));
-  background: linear-gradient(180deg,
-    color-mix(in srgb, var(--accent2) 18%, var(--card)),
-    color-mix(in srgb, var(--accent2) 10%, var(--card))
-  );
+/* Game render area */
+#game {
+  width: 100%;
+  max-width: 100%;
 }
 
-/* Danger / reset (if you later add class="danger") */
-button.danger{
-  border-color: color-mix(in srgb, var(--bad) 55%, var(--border));
-  background: linear-gradient(180deg,
-    color-mix(in srgb, var(--bad) 16%, var(--card)),
-    color-mix(in srgb, var(--bad) 8%, var(--card))
-  );
+/* Helps existing game.js content feel card-like even before refactoring */
+#game > div,
+#game > section,
+#game > div > div {
+  border-radius: var(--radius-md);
 }
 
-/* ---------- Score bar polish ---------- */
-#scoreBar{
+/* Polishes many inline-styled blocks created in JS */
+#game div[style*="border"],
+#game section[style*="border"] {
+  background: var(--panel-2);
+  border-color: var(--line) !important;
+  box-shadow: var(--shadow-soft);
+  border-radius: var(--radius-md) !important;
+}
+
+/* Score bar if present */
+#scoreBar {
   display: inline-block;
-  padding: 8px 10px;
+  padding: 8px 12px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--accent2) 10%, var(--card));
-  border: 1px solid color-mix(in srgb, var(--accent2) 22%, var(--border));
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.12);
 }
 
-#scoreBar strong{
-  color: var(--text);
+h1, h2, h3, h4 {
+  margin-top: 0;
 }
 
-/* ---------- Responsive ---------- */
-@media (max-width: 560px){
-  body{ padding: 14px; }
-  button{ width: 100%; }
-  input, select{ max-width: 100%; }
+p {
+  color: rgba(238, 244, 255, 0.88);
+}
+
+@media (max-width: 700px) {
+  .page-shell {
+    padding: 16px;
+  }
+
+  .topbar,
+  .setup-card,
+  .game-shell {
+    border-radius: 18px;
+    padding: 18px;
+  }
+
+  .topbar h1 {
+    font-size: 1.8rem;
+  }
+
+  button {
+    width: 100%;
+  }
 }
