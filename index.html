@@ -81,5 +81,189 @@
   </div>
 
   <script src="app.js"></script>
+  <script>
+    (() => {
+      const overlay = document.getElementById("loreOverlay");
+      const mosaic = document.getElementById("loreMosaic");
+      const titleEl = document.getElementById("loreTitle");
+      const textEl = document.getElementById("loreText");
+      const progressEl = document.getElementById("loreProgress");
+      const nextBtn = document.getElementById("loreNextBtn");
+      const skipBtn = document.getElementById("loreSkipBtn");
+
+      // Replace these with your actual image paths
+      const loreImages = [
+        [
+          "images/loki-profile.jpg",
+          "images/merci-goal.jpg",
+          "images/duck-pond-gate.jpg",
+          "images/duck-pond-fortress.jpg",
+          "images/loki-overlook.jpg",
+          "images/clans-fanart.jpg"
+        ],
+        [
+          "images/duck-pond-gate.jpg",
+          "images/loki-profile.jpg",
+          "images/duck-pond-fortress.jpg",
+          "images/merci-goal.jpg",
+          "images/loki-overlook.jpg",
+          "images/clans-fanart.jpg"
+        ],
+        [
+          "images/duck-pond-fortress.jpg",
+          "images/duck-pond-gate.jpg",
+          "images/loki-overlook.jpg",
+          "images/merci-goal.jpg",
+          "images/loki-profile.jpg",
+          "images/clans-fanart.jpg"
+        ],
+        [
+          "images/merci-goal.jpg",
+          "images/loki-profile.jpg",
+          "images/duck-pond-fortress.jpg",
+          "images/duck-pond-gate.jpg",
+          "images/loki-overlook.jpg",
+          "images/clans-fanart.jpg"
+        ],
+        [
+          "images/loki-overlook.jpg",
+          "images/duck-pond-fortress.jpg",
+          "images/merci-goal.jpg",
+          "images/duck-pond-gate.jpg",
+          "images/loki-profile.jpg",
+          "images/clans-fanart.jpg"
+        ],
+        [
+          "images/loki-profile.jpg",
+          "images/merci-goal.jpg",
+          "images/loki-overlook.jpg",
+          "images/duck-pond-fortress.jpg",
+          "images/duck-pond-gate.jpg",
+          "images/clans-fanart.jpg"
+        ]
+      ];
+
+      let slides = [];
+      let current = 0;
+
+      function chunkParagraphs(paragraphs, desiredSlides = 6) {
+        const cleaned = paragraphs.filter(Boolean).map(p => p.trim()).filter(Boolean);
+        if (!cleaned.length) return [];
+
+        const perSlide = Math.ceil(cleaned.length / desiredSlides);
+        const out = [];
+
+        for (let i = 0; i < cleaned.length; i += perSlide) {
+          out.push(cleaned.slice(i, i + perSlide));
+        }
+
+        return out.slice(0, desiredSlides);
+      }
+
+      function getSlideTitle(index) {
+        const titles = [
+          "The Last Refuge",
+          "The Fall",
+          "What Endured",
+          "The Prize",
+          "On the Ice",
+          "Cave Canem"
+        ];
+        return titles[index] || `Lore ${index + 1}`;
+      }
+
+      function buildMosaic(images) {
+        const layouts = [
+          { c:"1 / span 4",  r:"1 / span 3" },
+          { c:"5 / span 4",  r:"1 / span 2" },
+          { c:"9 / span 4",  r:"1 / span 4" },
+          { c:"1 / span 3",  r:"4 / span 3" },
+          { c:"4 / span 5",  r:"3 / span 4" },
+          { c:"9 / span 4",  r:"5 / span 3" },
+        ];
+
+        mosaic.innerHTML = "";
+
+        images.slice(0, 6).forEach((src, i) => {
+          const tile = document.createElement("div");
+          tile.className = "lore-tile";
+          tile.style.backgroundImage = `url("${src}")`;
+          tile.style.gridColumn = layouts[i].c;
+          tile.style.gridRow = layouts[i].r;
+          mosaic.appendChild(tile);
+        });
+      }
+
+      function renderSlide(index) {
+        const slide = slides[index];
+        if (!slide) return;
+
+        titleEl.textContent = getSlideTitle(index);
+        textEl.innerHTML = slide.map(p => `<p>${p}</p>`).join("");
+        progressEl.textContent = `${index + 1} / ${slides.length}`;
+        nextBtn.textContent = index === slides.length - 1 ? "Enter The Duck Pond" : "Next";
+
+        const imageSet = loreImages[index] || loreImages[loreImages.length - 1] || [];
+        buildMosaic(imageSet);
+      }
+
+      function closeLore() {
+        overlay.classList.remove("is-open");
+        overlay.setAttribute("aria-hidden", "true");
+      }
+
+      function openLore() {
+        overlay.classList.add("is-open");
+        overlay.setAttribute("aria-hidden", "false");
+      }
+
+      async function loadLoreSlides() {
+        const res = await fetch("lore.txt", { cache: "no-store" });
+        const txt = await res.text();
+
+        const paragraphs = txt
+          .split(/\n\s*\n/g)
+          .map(p => p.replace(/\n/g, " ").trim())
+          .filter(Boolean);
+
+        slides = chunkParagraphs(paragraphs, 6);
+
+        if (!slides.length) {
+          slides = [[
+            "Welcome to The Duck Pond.",
+            "Cave Canem."
+          ]];
+        }
+      }
+
+      nextBtn.addEventListener("click", () => {
+        if (current < slides.length - 1) {
+          current += 1;
+          renderSlide(current);
+        } else {
+          closeLore();
+        }
+      });
+
+      skipBtn.addEventListener("click", closeLore);
+
+      document.addEventListener("keydown", (e) => {
+        if (!overlay.classList.contains("is-open")) return;
+        if (e.key === "Escape") closeLore();
+        if (e.key === "Enter" || e.key === "ArrowRight") nextBtn.click();
+      });
+
+      window.addEventListener("load", async () => {
+        try {
+          await loadLoreSlides();
+          current = 0;
+          renderSlide(current);
+          openLore();
+        } catch (err) {
+          console.error("Failed to load lore overlay:", err);
+        }
+      });
+    })();
+  </script>
 </body>
 </html>
