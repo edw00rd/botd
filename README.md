@@ -11,9 +11,9 @@ This project is a lightweight web app designed to run in a browser (perfect for 
 ## What You Need
 
 - A real hockey game to watch (NHL, college, beer league… anything with a scoreboard)
-- 2 players (or 1 player vs the “House” scorekeeper)
+- 2 players (or 1 player vs the “House” scorekeeper. Heavily weighted in the player's favor.   Very kid/novice friendly. Designed for a situation where someone knows very little about     the game, and presumably the Scorekeeper/House does)
 - A fun **ANTE** (optional): chores, push-ups, snacks, bragging rights, etc.
-- **Optional:** a **D6 (six-sided die)** for the **Good Boy (FETCH!!)** roll (you can also use any dice app or RNG)
+- **Optional:** a **D6 (six-sided die)** for the **Good Boy (FETCH!!)** roll (you can also     use any dice app or RNG)
 
 ---
 
@@ -23,14 +23,14 @@ This project is a lightweight web app designed to run in a browser (perfect for 
 
 - **Player 1** plays against the **House** (a scorekeeper / referee).
 - The House also makes picks and enters the end-of-period results.
-- There is **one DOG pool** that belongs to Player 1, if Player wins they receive
+- There is **one DOG kennel** that belongs to Player 1, if Player wins they receive
   a dog, if house wins a dog is removed. (legacy BOTD rules, very kid friendly).
 
 ### VS Mode
 
 - **Player 1 vs Player 2** (fully symmetric).
-- Each player has their **own DOG pool**.
-- Either player can win a dog and use it to scratch/burry questions (as long as they haven’t locked any picks yet that period).
+- Each player has their **own DOG kennel**. No dogs are ever removed.
+- Either player can win a dog and use it to scratch/burry questions (as long as they haven’t   locked any picks yet that period).
 
 ---
 
@@ -50,13 +50,13 @@ Before the puck drops, both sides answer:
 
 ## Period Play (3 points per period)
 
-Each period has **three questions**. Both sides answer all three and lock them in.
+Each period has **three questions**. Both sides answer all three and lock them in prior to the start of the period. (Answer period 1 questions before puck drop!)
 
 ### Period Questions
 
 1) **Goal this period?** (Yes/No)  
 2) **Penalty this period?** (Yes/No)  
-3) **Will each team record at least 5 shots on goal this period?** (Yes/No)
+3) **Will EACH team record at least 5 shots on goal this period?** (Yes/No)
 
 ### Locking / Turn Structure
 
@@ -76,9 +76,8 @@ DOGs are a limited resource you can spend to scratch/burry an opponent’s quest
 
 ### What burrying a question Does
 
-- Spend **1 DOG** to scratch **one opponent question** (Q1, Q2, or Q3) for the current period.
-- A scratched or "burried" question is marked with **🦴** and is no longer available for the opposing
-  player to score a point on that question.
+- Spend **1 DOG** to scratch **one opponent question** (Q1, Q2, or Q3) for the current         period.
+- A scratched or "burried" question is marked with **🦴** and is no longer available for the   opposing player to score a point on that question.
 
 ### When You Can Scratch
 
@@ -97,15 +96,15 @@ DOGs are a limited resource you can spend to scratch/burry an opponent’s quest
 Once Period 3 begins:
 
 - You can spend DOGs at the start of P3,
-- but **as soon as you lock your first P3 pick**, any leftover DOGs for that player become **void**.
+- but **as soon as you lock your first P3 pick**, any leftover DOGs for that player become     **void**.
 
 ---
 
 ## Good Boy (FETCH!!) 🦴🐶
 
-Winning Period 3 can earn a **Good Boy** dog.
+Winning Period 3 can earn a special **Good Boy** dog.
 
-> **Tip:** You can roll a physical **D6**, use a dice app, or use any random number generator from 1–6.
+> **Tip:** You can roll a physical **D6**, use a dice app, or use any random number             generator from 1–6.
 
 ### How It Works
 
@@ -113,8 +112,11 @@ Winning Period 3 can earn a **Good Boy** dog.
 - You roll a **D6** which targets one of your opponent’s Period 1–2 questions:
   - 1 = P1 Q1, 2 = P1 Q2, 3 = P1 Q3  
   - 4 = P2 Q1, 5 = P2 Q2, 6 = P2 Q3
+    (one-one question mapping to each side of the D6)
 - If your opponent was correct on the targeted question, they lose **1 point**.
+              🦴🐶 **Good Boy!!!**
 - If they were incorrect, nothing happens.
+                  🐶<BARK!!
 
 ---
 
