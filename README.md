@@ -192,4 +192,4 @@ Check the GitHub **Actions** tab for E2E test runs and downloadable Playwright r
 
 ## License
 
-Add your preferred license here (MIT, Apache-2.0, etc.)
+This project is licensed under the MIT License. You are free to use, modify, and distribute this software in accordance with the terms of the MIT License. See the LICENSE file in the root of this repo for the full license text.
