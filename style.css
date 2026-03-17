@@ -104,7 +104,15 @@ body {
   cursor:pointer;
   box-shadow:none;
 }
+.share-tag-btn:hover{
+  transform:none;
+  border-color:transparent;
+  background:transparent;
+}
 
+.share-tag-btn:active{
+  transform:scale(0.95);
+}
 .share-tag-img{
   display:block;
   width:48px;
