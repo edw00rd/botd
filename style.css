@@ -302,10 +302,12 @@ button:disabled { opacity: 0.55; cursor: not-allowed; transform: none; box-shado
 
 @media (max-width: 800px){
   .lore-shell{
-    height:100vh;
     width:100vw;
+    height:100vh;
+    height:100dvh;
     margin:0;
     border-radius:0;
+    overflow:hidden;
   }
 
   .lore-mosaic{
@@ -316,25 +318,51 @@ button:disabled { opacity: 0.55; cursor: not-allowed; transform: none; box-shado
   }
 
   .lore-panel{
+    position:absolute;
     left:12px;
     right:12px;
     bottom:12px;
     transform:none;
     width:auto;
     padding:20px;
+    max-height:calc(100dvh - 24px);
+    display:flex;
+    flex-direction:column;
+    z-index:2;
+  }
+
+  .lore-title{
+    font-size:clamp(1.9rem, 8vw, 2.6rem);
+  }
+
+  .lore-text{
+    flex:1 1 auto;
+    min-height:0;
+    max-height:none;
+    overflow:auto;
+    -webkit-overflow-scrolling:touch;
+    padding-right:4px;
   }
 
   .lore-footer{
+    flex:0 0 auto;
+    display:flex;
     flex-direction:column;
     align-items:stretch;
+    gap:12px;
+    margin-top:14px;
   }
 
   .lore-actions{
     width:100%;
+    display:flex;
+    gap:10px;
   }
 
   .lore-actions .btn{
-    flex:1;
+    flex:1 1 0;
+    min-height:52px;
+    width:auto;
   }
 }
 .readme-link{
