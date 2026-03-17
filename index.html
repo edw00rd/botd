@@ -44,11 +44,23 @@
 
   <div class="page-shell">
     <header class="topbar">
-      <h1>Beware of the Dog</h1>
-      <p class="subtitle">Game Setup</p>
+      <div class="title-row">
+        <button id="shareTagBtn" class="share-tag-btn" type="button" aria-label="Share">
+          <img src="bgimages/botd-tag.png" alt="BOTD tag" class="share-tag-img" />
+          <span class="share-tag-tooltip">share</span>
+        </button>
+    
+        <div class="title-block">
+          <h1>Beware of the Dog</h1>
+          <p class="subtitle">Game Setup</p>
+        </div>
+      </div>
+    
       <a class="readme-link" href="./README.md" target="_blank" rel="noopener noreferrer">
         Game Instructions / Release Notes
       </a>
+    
+      <span id="shareStatus" class="share-status" aria-live="polite"></span>
     </header>
 
     <main class="setup-shell">
