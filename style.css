@@ -245,9 +245,9 @@ button:disabled { opacity: 0.55; cursor: not-allowed; transform: none; box-shado
   color:#dde6f0;
   font-size:clamp(1rem, 1.1vw, 1.15rem);
   line-height:1.6;
-  max-height:34vh;
   overflow:auto;
   padding-right:6px;
+  -webkit-overflow-scrolling:touch;
 }
 
 .lore-text p{
