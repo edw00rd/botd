@@ -994,30 +994,80 @@ function renderPeriod(key, opts = {}) {
           ? `<div style="margin:8px 0;"><strong>🔒 Period ${p.n} results locked</strong></div>`
           : `
             <div style="margin:8px 0;">
-              <div style="display:grid; grid-template-columns: 110px 1fr 1fr; gap:10px; align-items:center;">
-                <div></div>
-                <div style="font-weight:700;">Y</div>
-                <div style="font-weight:700;">N</div>
-
-                <div style="font-weight:700;">Goals?</div>
-                <label style="display:flex; gap:8px; align-items:center;">
-                  <input type="checkbox" id="${key}_r_goal_y" ${r.goal === "Yes" ? "checked" : ""} />
-                  <span>Yes</span>
-                </label>
-                <label style="display:flex; gap:8px; align-items:center;">
-                  <input type="checkbox" id="${key}_r_goal_n" ${r.goal === "No" ? "checked" : ""} />
-                  <span>No</span>
-                </label>
-
-                <div style="font-weight:700;">Penalty?</div>
-                <label style="display:flex; gap:8px; align-items:center;">
-                  <input type="checkbox" id="${key}_r_pen_y" ${r.penalty === "Yes" ? "checked" : ""} />
-                  <span>Yes</span>
-                </label>
-                <label style="display:flex; gap:8px; align-items:center;">
-                  <input type="checkbox" id="${key}_r_pen_n" ${r.penalty === "No" ? "checked" : ""} />
-                  <span>No</span>
-                </label>
+              <div style="margin-bottom:14px;">
+                <div style="font-weight:700; margin-bottom:8px;">Goals?</div>
+                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                  <button
+                    type="button"
+                    id="${key}_r_goal_y"
+                    style="
+                      min-width:120px;
+                      min-height:48px;
+                      padding:12px 16px;
+                      border-radius:14px;
+                      border:${r.goal === "Yes" ? "2px solid rgba(255,255,255,.55)" : "1px solid rgba(255,255,255,.18)"};
+                      background:${r.goal === "Yes" ? "rgba(255,255,255,.28)" : "rgba(255,255,255,.06)"};
+                      color:#eef4ff;
+                      font-weight:700;
+                    "
+                  >Yes</button>
+            
+                  <button
+                    type="button"
+                    id="${key}_r_goal_n"
+                    style="
+                      min-width:120px;
+                      min-height:48px;
+                      padding:12px 16px;
+                      border-radius:14px;
+                      border:${r.goal === "No" ? "2px solid rgba(255,255,255,.55)" : "1px solid rgba(255,255,255,.18)"};
+                      background:${r.goal === "No" ? "rgba(255,255,255,.28)" : "rgba(255,255,255,.06)"};
+                      color:#eef4ff;
+                      font-weight:700;
+                    "
+                  >No</button>
+                </div>
+                <div style="margin-top:6px; font-size:0.9rem; opacity:0.75;">
+                  Selected: <strong>${r.goal ?? "—"}</strong>
+                </div>
+              </div>
+            
+              <div>
+                <div style="font-weight:700; margin-bottom:8px;">Penalty?</div>
+                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                  <button
+                    type="button"
+                    id="${key}_r_pen_y"
+                    style="
+                      min-width:120px;
+                      min-height:48px;
+                      padding:12px 16px;
+                      border-radius:14px;
+                      border:${r.penalty === "Yes" ? "2px solid rgba(255,255,255,.55)" : "1px solid rgba(255,255,255,.18)"};
+                      background:${r.penalty === "Yes" ? "rgba(255,255,255,.28)" : "rgba(255,255,255,.06)"};
+                      color:#eef4ff;
+                      font-weight:700;
+                    "
+                  >Yes</button>
+            
+                  <button
+                    type="button"
+                    id="${key}_r_pen_n"
+                    style="
+                      min-width:120px;
+                      min-height:48px;
+                      padding:12px 16px;
+                      border-radius:14px;
+                      border:${r.penalty === "No" ? "2px solid rgba(255,255,255,.55)" : "1px solid rgba(255,255,255,.18)"};
+                      background:${r.penalty === "No" ? "rgba(255,255,255,.28)" : "rgba(255,255,255,.06)"};
+                      color:#eef4ff;
+                      font-weight:700;
+                    "
+                  >No</button>
+                </div>
+                <div style="margin-top:6px; font-size:0.9rem; opacity:0.75;">
+                  Selected: <strong>${r.penalty ?? "—"}</strong>
+                </div>
               </div>
             </div>
 
@@ -2389,39 +2439,40 @@ function wirePeriodButtons(key) {
   wirePickYesNo(picks.q2_penalty, `${key}q2`, "q2_penalty");
   wirePickYesNo(picks.q3_both5sog, `${key}q3`, "q3_both5sog");
 
-  // Results checkboxes mutual exclusive
   const goalY = document.getElementById(`${key}_r_goal_y`);
   const goalN = document.getElementById(`${key}_r_goal_n`);
   const penY  = document.getElementById(`${key}_r_pen_y`);
   const penN  = document.getElementById(`${key}_r_pen_n`);
-
-  if (goalY && goalN) {
-    goalY.onchange = () => {
+  
+  if (goalY) {
+    goalY.onclick = () => {
       pushUndo(undoKey, snapPeriod(key));
-      if (goalY.checked) { goalN.checked = false; r.goal = "Yes"; }
-      else if (!goalN.checked) r.goal = null;
-      saveState();
-    };
-    goalN.onchange = () => {
-      pushUndo(undoKey, snapPeriod(key));
-      if (goalN.checked) { goalY.checked = false; r.goal = "No"; }
-      else if (!goalY.checked) r.goal = null;
-      saveState();
+      r.goal = "Yes";
+      render();
     };
   }
-
-  if (penY && penN) {
-    penY.onchange = () => {
+  
+  if (goalN) {
+    goalN.onclick = () => {
       pushUndo(undoKey, snapPeriod(key));
-      if (penY.checked) { penN.checked = false; r.penalty = "Yes"; }
-      else if (!penN.checked) r.penalty = null;
-      saveState();
+      r.goal = "No";
+      render();
     };
-    penN.onchange = () => {
+  }
+  
+  if (penY) {
+    penY.onclick = () => {
       pushUndo(undoKey, snapPeriod(key));
-      if (penN.checked) { penY.checked = false; r.penalty = "No"; }
-      else if (!penY.checked) r.penalty = null;
-      saveState();
+      r.penalty = "Yes";
+      render();
+    };
+  }
+  
+  if (penN) {
+    penN.onclick = () => {
+      pushUndo(undoKey, snapPeriod(key));
+      r.penalty = "No";
+      render();
     };
   }
 
