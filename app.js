@@ -5,7 +5,7 @@
   startBtn?.addEventListener("click", () => {
     const away = (document.getElementById("away").value || "Away").trim();
     const home = (document.getElementById("home").value || "Home").trim();
-    const mode = (document.getElementById("mode").value || "HOUSE").trim().toUpperCase();
+    const mode = (document.getElementById("mode").value || "VS").trim().toUpperCase();
     const player1 = (document.getElementById("player1").value || "Player 1").trim();
     const house = (document.getElementById("house").value || (mode === "VS" ? "Player 2" : "House")).trim();
     const ante = (document.getElementById("ante").value || "").trim();
