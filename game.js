@@ -25,15 +25,12 @@ function installDelegatedFallback() {
     const t = e.target;
     if (!(t instanceof Element)) return;
 
-    // IMPORTANT: use closest() so clicks on nested elements inside buttons still work
-    const btn = t.closest("button, [role=\"button\"], a");
+    const btn = t.closest('button, [role="button"], a');
     if (!btn) return;
 
     const id = btn.id;
     if (!id) return;
 
-    // For navigation buttons, ALWAYS handle here (even if onclick exists),
-    // because we've seen cases where wiring breaks mid-render or focus/scroll interferes.
     const isNav =
       id === "toQ2" || id === "backToQ1" ||
       id === "toP1" || id === "toP2" || id === "toP3" ||
@@ -41,16 +38,17 @@ function installDelegatedFallback() {
       id === "backToQ2" || id === "backToP1" || id === "backToP2" || id === "backToP3" ||
       id === "toOT" || id === "toSO" || id === "awardPregame";
 
-    // If normal wiring exists (onclick set), let it handle the click — except for nav buttons.
     const el = document.getElementById(id);
     if (!isNav && el && typeof el.onclick === "function") return;
 
     // ---- Critical header buttons ----
     if (id === "disableLive") {
       e.preventDefault(); e.stopPropagation();
-      state.live = false; render();
+      state.live = false;
+      render();
       return;
     }
+
     if (id === "restartNow" || id === "restartGame") {
       e.preventDefault(); e.stopPropagation();
       if (!confirm("Start over? This will clear the current game state.")) return;
@@ -60,62 +58,135 @@ function installDelegatedFallback() {
     }
 
     // ---- Pre-game Q1 ----
-    if (id === "q1_playerAway") { e.preventDefault(); e.stopPropagation(); state.pre.q1.player="Away"; state.pre.q1.lockedPlayer=true; render(); return; }
-    if (id === "q1_playerHome") { e.preventDefault(); e.stopPropagation(); state.pre.q1.player="Home"; state.pre.q1.lockedPlayer=true; render(); return; }
-    if (id === "q1_houseAway")  { e.preventDefault(); e.stopPropagation(); if (!state.pre.q1.lockedPlayer) return; state.pre.q1.house="Away"; state.pre.q1.lockedHouse=true; render(); return; }
-    if (id === "q1_houseHome")  { e.preventDefault(); e.stopPropagation(); if (!state.pre.q1.lockedPlayer) return; state.pre.q1.house="Home"; state.pre.q1.lockedHouse=true; render(); return; }
+    if (id === "q1_playerAway") {
+      e.preventDefault(); e.stopPropagation();
+      state.pre.q1.player = "Away";
+      state.pre.q1.lockedPlayer = true;
+      render();
+      return;
+    }
+    if (id === "q1_playerHome") {
+      e.preventDefault(); e.stopPropagation();
+      state.pre.q1.player = "Home";
+      state.pre.q1.lockedPlayer = true;
+      render();
+      return;
+    }
+    if (id === "q1_houseAway") {
+      e.preventDefault(); e.stopPropagation();
+      if (!state.pre.q1.lockedPlayer) return;
+      state.pre.q1.house = "Away";
+      state.pre.q1.lockedHouse = true;
+      render();
+      return;
+    }
+    if (id === "q1_houseHome") {
+      e.preventDefault(); e.stopPropagation();
+      if (!state.pre.q1.lockedPlayer) return;
+      state.pre.q1.house = "Home";
+      state.pre.q1.lockedHouse = true;
+      render();
+      return;
+    }
 
     // ---- Pre-game Q2 ----
     if (id === "q2_player_Yes" || id === "q2_player_No") {
       e.preventDefault(); e.stopPropagation();
       if (typeof pushUndo === "function") pushUndo("pre_q2", snapPreQ2());
-      state.pre.q2.player = (id.endsWith("_Yes") ? "Yes" : "No");
+      state.pre.q2.player = id.endsWith("_Yes") ? "Yes" : "No";
       state.pre.q2.lockedPlayer = true;
-      render(); return;
+      render();
+      return;
     }
+
     if (id === "q2_house_Yes" || id === "q2_house_No") {
       e.preventDefault(); e.stopPropagation();
       if (!state.pre.q2.lockedPlayer) return;
       if (typeof pushUndo === "function") pushUndo("pre_q2", snapPreQ2());
-      state.pre.q2.house = (id.endsWith("_Yes") ? "Yes" : "No");
+      state.pre.q2.house = id.endsWith("_Yes") ? "Yes" : "No";
       state.pre.q2.lockedHouse = true;
-      render(); return;
+      render();
+      return;
     }
 
     // ---- Navigation ----
-    if (id === "toQ2") { e.preventDefault(); e.stopPropagation(); state.screen="pre_q2"; render(); return; }
-    if (id === "backToQ1") { e.preventDefault(); e.stopPropagation(); state.screen="pre_q1"; render(); return; }
+    if (id === "toQ2") {
+      e.preventDefault(); e.stopPropagation();
+      state.screen = "pre_q2";
+      render();
+      return;
+    }
+
+    if (id === "backToQ1") {
+      e.preventDefault(); e.stopPropagation();
+    
+      const undone = (typeof tryUndo === "function")
+        ? tryUndo("pre_q2", (snap) => { state.pre.q2 = snap; })
+        : false;
+    
+      if (!undone) {
+        state.screen = "pre_q1";
+        render();
+      }
+      return;
+    }
 
     if (id === "toP1") {
       e.preventDefault(); e.stopPropagation();
-      // enforce readiness
+
       if (!state.pre?.q2?.lockedPlayer || !state.pre?.q2?.lockedHouse) {
         alert("Lock both Pre-Game Q2 answers to start Period 1.");
         return;
       }
+
+      if (typeof sanitizePeriods === "function") sanitizePeriods();
       if (typeof commitStage === "function") commitStage("pregame");
       if (typeof setPendingScrollTarget === "function" && typeof chooseScrollTargetForScreen === "function") {
         setPendingScrollTarget(chooseScrollTargetForScreen("p1"));
       }
-      state.screen="p1";
+
+      state.screen = "p1";
       render();
       return;
     }
+
     if (id === "toP2") {
       e.preventDefault(); e.stopPropagation();
+
+      if (typeof sanitizePeriods === "function") sanitizePeriods();
       if (typeof commitStage === "function") commitStage("p1");
       if (typeof setPendingScrollTarget === "function" && typeof chooseScrollTargetForScreen === "function") {
         setPendingScrollTarget(chooseScrollTargetForScreen("p2"));
       }
-      state.screen="p2"; render(); return;
+
+      state.screen = "p2";
+      render();
+      return;
     }
+
     if (id === "toP3") {
       e.preventDefault(); e.stopPropagation();
+
+      if (typeof sanitizePeriods === "function") sanitizePeriods();
       if (typeof commitStage === "function") commitStage("p2");
+
+      const p3 = state.periods.p3;
+      p3.dogSpend = p3.dogSpend ?? { used: false, scratched: null, scratchedList: [], voided: false };
+      p3.dogSpend.voided = false;
+
+      // VS mode: reset per-side void flags too
+      p3.dogSpend.player = p3.dogSpend.player ?? { used: false, scratchedList: [], voided: false };
+      p3.dogSpend.house = p3.dogSpend.house ?? { used: false, scratchedList: [], voided: false };
+      p3.dogSpend.player.voided = false;
+      p3.dogSpend.house.voided = false;
+
       if (typeof setPendingScrollTarget === "function" && typeof chooseScrollTargetForScreen === "function") {
         setPendingScrollTarget(chooseScrollTargetForScreen("p3"));
       }
-      state.screen="p3"; render(); return;
+
+      state.screen = "p3";
+      render();
+      return;
     }
   }, true);
 }
@@ -858,10 +929,16 @@ function renderPeriod(key, opts = {}) {
     }
   }
 
-  const anyLockedBySide = (side) =>
-    picks.q1_goal[`locked${side === "player" ? "Player" : "House"}`] ||
-    picks.q2_penalty[`locked${side === "player" ? "Player" : "House"}`] ||
-    picks.q3_both5sog[`locked${side === "player" ? "Player" : "House"}`];
+  const hasRealAnswer = (v) => v === "Yes" || v === "No";
+  
+  const anyAnsweredBySide = (side) => {
+    const prop = side === "player" ? "player" : "house";
+    return (
+      hasRealAnswer(picks.q1_goal[prop]) ||
+      hasRealAnswer(picks.q2_penalty[prop]) ||
+      hasRealAnswer(picks.q3_both5sog[prop])
+    );
+  };
 
   const scratchedList = (side) => {
     if (!isVS) return p.dogSpend.scratchedList ?? [];
@@ -889,7 +966,7 @@ function renderPeriod(key, opts = {}) {
       (isP2 || isP3) &&
       dogsCount(side) > 0 &&
       !p.lockedResults &&
-      !anyLockedBySide(side) &&
+      !anyAnsweredBySide(side) &&
       (side === "player" || allLockedPlayerPicks) &&
       !(isVS ? (p.dogSpend[side].voided) : p.dogSpend.voided) &&
       (scratchedList(side).length < maxScratches);
@@ -1950,6 +2027,11 @@ function wireHandlers() {
     const p3 = state.periods.p3;
     p3.dogSpend = p3.dogSpend ?? { used: false, scratched: null, scratchedList: [], voided: false };
     p3.dogSpend.voided = false;
+    
+    p3.dogSpend.player = p3.dogSpend.player ?? { used: false, scratchedList: [], voided: false };
+    p3.dogSpend.house  = p3.dogSpend.house  ?? { used: false, scratchedList: [], voided: false };
+    p3.dogSpend.player.voided = false;
+    p3.dogSpend.house.voided = false;
 
     setPendingScrollTarget(chooseScrollTargetForScreen("p3"));
 
@@ -2289,10 +2371,16 @@ function wirePeriodButtons(key) {
     else state.dogs.house = val;
   };
 
-  const anyLockedBySide = (side) =>
-    picks.q1_goal[`locked${side === "player" ? "Player" : "House"}`] ||
-    picks.q2_penalty[`locked${side === "player" ? "Player" : "House"}`] ||
-    picks.q3_both5sog[`locked${side === "player" ? "Player" : "House"}`];
+  const hasRealAnswer = (v) => v === "Yes" || v === "No";
+  
+  const anyAnsweredBySide = (side) => {
+    const prop = side === "player" ? "player" : "house";
+    return (
+      hasRealAnswer(picks.q1_goal[prop]) ||
+      hasRealAnswer(picks.q2_penalty[prop]) ||
+      hasRealAnswer(picks.q3_both5sog[prop])
+    );
+  };
 
   const scratchedList = (side) => {
     if (!isVS) return p.dogSpend.scratchedList ?? [];
@@ -2333,7 +2421,8 @@ function wirePeriodButtons(key) {
     (isP2 || isP3) &&
     dogsCount(side) > 0 &&
     !p.lockedResults &&
-    !anyLockedBySide(side) &&
+    !anyAnsweredBySide(side) &&
+    (side === "player" || allLockedPlayerPicks) &&
     !(isVS ? p.dogSpend[side].voided : p.dogSpend.voided) &&
     scratchedList(side).length < maxScratches;
 
@@ -2383,14 +2472,14 @@ function wirePeriodButtons(key) {
     if (!isP3) return;
     if (!isVS) {
       if (p.dogSpend.voided) return;
-      if (anyLockedBySide("player")) {
+      if (anyAnsweredBySide("player")) {
         state.dogs = 0;
         p.dogSpend.voided = true;
       }
       return;
     }
     if (p.dogSpend[side].voided) return;
-    if (anyLockedBySide(side)) {
+    if (anyAnsweredBySide(side)) {
       setDogs(side, 0);
       p.dogSpend[side].voided = true;
     }
