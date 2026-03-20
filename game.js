@@ -2338,6 +2338,11 @@ function wirePeriodButtons(key) {
   const p = state.periods[key];
   const picks = p.picks;
   const r = p.results;
+  const allLockedPlayerPicks = (
+    picks.q1_goal.lockedPlayer &&
+    picks.q2_penalty.lockedPlayer &&
+    picks.q3_both5sog.lockedPlayer
+  );
 
   const isP2 = key === "p2";
   const isP3 = key === "p3";
