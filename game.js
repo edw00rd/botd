@@ -200,8 +200,8 @@ if (!state) {
   // Core
   state.score = state.score ?? { player: 0, house: 0 };
 
-// Mode: "HOUSE" (default) or "VS" (symmetric)
-state.mode = (state.mode ?? "HOUSE").toString().trim().toUpperCase();
+// Mode: "HOUSE" (symetric) or "VS" (default)
+state.mode = (state.mode ?? "VS").toString().trim().toUpperCase();
   if (state.mode !== "VS") state.mode = "HOUSE";
 
 // VS mode uses player2 name (aliasing prior 'house' field)
